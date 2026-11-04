@@ -156,3 +156,53 @@ enforces what the token may access.
 unchanged. `tests/test_auth_modes.py` adds 23 tests that cover both client modes, the copy
 semantics, the env-isolation of the token, middleware switching between consecutive calls, and the
 error messages.
+
+---
+
+## Phase 2 — Secret-path mode
+
+`MCP_PATH_SECRET` is optional. When it is set (HTTP transport only):
+
+- `/<secret>/mcp` (and `/<secret>/mcp/`) serves the MCP endpoint in **API-key mode**.
+- `/healthz` and `/health` always return `{"status":"ok"}`. `/health` is kept because the Docker
+  `HEALTHCHECK` and `healthcheck.py` probe it.
+- `/webhooks/intervals` is reachable when the webhook receiver is configured (Phase 4). The OAuth
+  endpoints and the OAuth-protected `/mcp` are reachable when OAuth is configured (Phase 3).
+- **Every other path returns 404**, including `/mcp` when OAuth is off and the internal path.
+
+**How it is enforced (in the app, not only in NGINX).** `remote.PathSecretGate` is the outermost
+ASGI wrapper:
+
+- It compares the first path segment with `hmac.compare_digest`. It does a comparison even when
+  the path has the wrong shape, so timing does not reveal the shape.
+- On a match it rewrites `scope["path"]` **in place** to `/__secret__/mcp`. Uvicorn's access log
+  reads the same scope dict, so the log shows `/__secret__/mcp` and never the secret.
+- The allowed public paths are taken from the app's actual routes, so nothing is listed twice.
+
+**Validation.** The secret must be at least 32 characters and use only `[A-Za-z0-9._~-]`, so
+that it is one URL segment. Otherwise the server exits with code 2 before it binds the port.
+Error messages give the length, never the value.
+
+**Log masking, belt and braces.** Uvicorn runs with a log config whose handlers all carry
+`SecretRedactingFilter`. The filter replaces the path secret, the OAuth client secret, the JWT key
+and the webhook secret with `***` in any record. `RemoteSettings.__repr__` also masks every value.
+A real uvicorn smoke run confirmed this: the secret path returned 200, `/mcp` returned 404, and
+the secret appeared zero times in the log.
+
+**Decisions**
+
+- *Which credentials does the secret path use?* The operator's API key (API-key mode). Having the
+  URL is the authentication. That is the point of using it before OAuth is approved.
+- *Remote features need `--transport http`.* With `sse` they cause a startup error; with stdio
+  they are ignored. `--path` together with `MCP_PATH_SECRET` is a startup error.
+- *Unset secret means unchanged behaviour.* When no remote setting is present, `main()` still
+  calls `mcp.run(transport=…)` exactly as before (there is a test for this). `/healthz` is the only
+  addition there.
+- *Runner.* In remote mode the server uses `uvicorn.run(...)` with FastMCP's defaults
+  (`timeout_graceful_shutdown=2`, `lifespan=on`, `ws=websockets-sansio`) plus the redacting log
+  config and `proxy_headers=True`. Uvicorn trusts `X-Forwarded-*` only from `FORWARDED_ALLOW_IPS`
+  (env, default `127.0.0.1`). The add-on sets it to the hassio network.
+- *Alternatives considered:* (a) NGINX-only enforcement. Rejected by the brief, and it would leave
+  the LAN port open. (b) A Starlette route literally named `/<secret>/mcp`. Rejected: Starlette's
+  router matches with a regex, which is not constant-time, and FastMCP logs the mount path at
+  startup.

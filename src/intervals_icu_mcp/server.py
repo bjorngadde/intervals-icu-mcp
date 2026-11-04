@@ -2,7 +2,7 @@
 
 import argparse
 import sys
-from typing import Any
+from typing import Any, NoReturn
 
 from dotenv import load_dotenv
 from fastmcp import FastMCP
@@ -19,6 +19,12 @@ mcp = FastMCP("intervals_icu_mcp")
 @mcp.custom_route("/health", methods=["GET"], include_in_schema=False)
 async def health(request: Request) -> JSONResponse:
     """Return static HTTP liveness without accessing MCP or upstream APIs."""
+    return JSONResponse({"status": "ok"})
+
+
+@mcp.custom_route("/healthz", methods=["GET"], include_in_schema=False)
+async def healthz(request: Request) -> JSONResponse:
+    """Unauthenticated liveness for reverse proxies; static, nothing sensitive."""
     return JSONResponse({"status": "ok"})
 
 
@@ -1266,8 +1272,10 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     args = parser.parse_args(argv)
     if args.transport != "stdio" and args.path is not None:
-        if args.path.removesuffix("/") == "/health":
-            parser.error("--path cannot be /health because it conflicts with the health route")
+        if args.path.removesuffix("/") in ("/health", "/healthz"):
+            parser.error(
+                "--path cannot be /health or /healthz because it conflicts with the health route"
+            )
     return args
 
 
@@ -1288,9 +1296,36 @@ def _emit_startup_log() -> None:
     )
 
 
+def _startup_error(message: str) -> NoReturn:
+    print(f"intervals-icu MCP configuration error: {message}", file=sys.stderr)
+    raise SystemExit(2)
+
+
 def main() -> None:
     """Main entry point for the Intervals.icu MCP server."""
+    from .remote import RemoteConfigError, load_remote_settings, run_remote
+
     args = _parse_args()
+    remote_settings = load_remote_settings()
+
+    # Remote features (secret path, OAuth, webhooks) are opt-in and HTTP-only.
+    # Validate before anything else so a bad secret stops the process early.
+    if args.transport != "stdio" and remote_settings.any_enabled:
+        if args.transport == "sse":
+            _startup_error(
+                "MCP_PATH_SECRET, OAuth and webhooks require --transport http "
+                "(streamable HTTP), not sse."
+            )
+        if remote_settings.path_secret_enabled and args.path is not None:
+            _startup_error("--path cannot be combined with MCP_PATH_SECRET.")
+        try:
+            remote_settings.validate_remote()
+        except RemoteConfigError as e:
+            _startup_error(str(e))
+        _emit_startup_log()
+        run_remote(mcp, remote_settings, host=args.host, port=args.port, path=args.path)
+        return
+
     _emit_startup_log()
 
     if args.transport == "stdio":
