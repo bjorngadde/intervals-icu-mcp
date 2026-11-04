@@ -1,0 +1,36 @@
+configuration:
+  api_key:
+    name: Intervals.icu API key
+    description: Used by secret-URL mode. Intervals.icu → Settings → Developer Settings.
+  athlete_id:
+    name: Athlete ID
+    description: Your athlete ID, e.g. i123456. Used with the API key.
+  path_secret:
+    name: Secret path
+    description: At least 32 random URL-safe characters. Enables https://<host>/<secret>/mcp.
+  oauth_client_id:
+    name: OAuth client ID
+    description: Intervals.icu → Settings → Apps → Manage App.
+  oauth_client_secret:
+    name: OAuth client secret
+    description: Intervals.icu → Settings → Apps → Manage App.
+  public_base_url:
+    name: Public base URL
+    description: The https URL NGINX serves this add-on at, e.g. https://intervals.example.com (no trailing path).
+  allowed_athlete_ids:
+    name: Allowed athlete IDs
+    description: Comma-separated athlete IDs allowed to log in via OAuth. Empty rejects everyone.
+  scopes:
+    name: OAuth scopes
+    description: Comma-separated Intervals.icu scopes requested at login.
+  webhook_secret:
+    name: Webhook secret
+    description: At least 16 characters; must match the app's "Webhook Authorization Header". Enables /webhooks/intervals.
+  ha_webhook_url:
+    name: Home Assistant webhook URL
+    description: Optional. Each Intervals.icu webhook is forwarded here, e.g. http://homeassistant.local.hass.io:8123/api/webhook/<id>.
+  log_level:
+    name: Log level
+    description: Server log level.
+network:
+  8099/tcp: MCP HTTP endpoint (behind NGINX; do not forward this port)

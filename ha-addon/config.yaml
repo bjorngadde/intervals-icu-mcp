@@ -1,0 +1,42 @@
+name: Intervals.icu MCP
+version: "0.1.0"
+slug: intervals_icu_mcp
+description: Remote MCP server for Intervals.icu (OAuth or secret URL) for Claude custom connectors
+url: https://github.com/bjorngadde/intervals-icu-mcp/tree/main/ha-addon
+arch:
+  - amd64
+  - aarch64
+init: false
+startup: application
+boot: auto
+# No ingress: Claude reaches the server through the NGINX proxy add-on.
+ingress: false
+ports:
+  8099/tcp: 8099
+ports_description:
+  8099/tcp: MCP HTTP endpoint (put NGINX with TLS in front; do not forward this port)
+watchdog: http://[HOST]:[PORT:8099]/healthz
+options:
+  api_key: ""
+  athlete_id: ""
+  path_secret: ""
+  oauth_client_id: ""
+  oauth_client_secret: ""
+  public_base_url: ""
+  allowed_athlete_ids: ""
+  scopes: "ACTIVITY:READ,WELLNESS:READ,CALENDAR:WRITE,SETTINGS:READ"
+  webhook_secret: ""
+  ha_webhook_url: ""
+  log_level: info
+schema:
+  api_key: password?
+  athlete_id: str?
+  path_secret: password?
+  oauth_client_id: str?
+  oauth_client_secret: password?
+  public_base_url: str?
+  allowed_athlete_ids: str?
+  scopes: str?
+  webhook_secret: password?
+  ha_webhook_url: password?
+  log_level: list(debug|info|warning|error)

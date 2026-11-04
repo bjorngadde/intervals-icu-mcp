@@ -1288,6 +1288,12 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=None,
         help="URL path to mount the server under (HTTP transports only).",
     )
+    parser.add_argument(
+        "--log-level",
+        choices=("debug", "info", "warning", "error"),
+        default="info",
+        help="HTTP server log level (remote mode: secret path / OAuth / webhooks). Default: info.",
+    )
     args = parser.parse_args(argv)
     if args.transport != "stdio" and args.path is not None:
         if args.path.removesuffix("/") in ("/health", "/healthz"):
@@ -1341,7 +1347,14 @@ def main() -> None:
         except RemoteConfigError as e:
             _startup_error(str(e))
         _emit_startup_log()
-        run_remote(mcp, remote_settings, host=args.host, port=args.port, path=args.path)
+        run_remote(
+            mcp,
+            remote_settings,
+            host=args.host,
+            port=args.port,
+            path=args.path,
+            log_level=args.log_level,
+        )
         return
 
     _emit_startup_log()

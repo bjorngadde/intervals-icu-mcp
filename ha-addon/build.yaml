@@ -1,0 +1,9 @@
+# Home Assistant Python base images (Alpine). Pinned for reproducible builds;
+# bump the dated tag to pick up base-image security updates.
+build_from:
+  amd64: ghcr.io/home-assistant/amd64-base-python:3.13-alpine3.24-2026.10.3
+  aarch64: ghcr.io/home-assistant/aarch64-base-python:3.13-alpine3.24-2026.10.3
+args:
+  # Git ref of the server to install. Pin a tag or commit for reproducible builds.
+  INTERVALS_MCP_REF: main
+  INTERVALS_MCP_REPO: https://github.com/bjorngadde/intervals-icu-mcp

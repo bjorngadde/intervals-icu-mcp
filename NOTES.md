@@ -303,3 +303,62 @@ unknown types stored and logged; allowlist filtering; rotation; the HA hook forw
 configured, stays off by default, does not fail the delivery when HA is down, and does not leak
 its URL; the tool's window, type and athlete filters; wiring behind the secret-path gate; and the
 tool registered only with the secret (subprocess check: 70 vs 71 tools).
+
+---
+
+## Phase 5 — Home Assistant add-on
+
+**Layout decision: an add-on folder in this repository** (`ha-addon/` plus `repository.yaml`
+at the root), not a separate add-on repository.
+
+- *Why:* one repository and one PR. The add-on is versioned and reviewed together with the code
+  it runs. Home Assistant can add `https://github.com/bjorngadde/intervals-icu-mcp` directly as
+  an add-on repository, because it scans top-level folders for `config.yaml` and only `ha-addon/`
+  has one.
+- *Alternative:* a separate `hassio-addons` repository. That is cleaner if more add-ons follow,
+  and it keeps HA files out of a fork that tracks upstream. It is easy to move later: the folder
+  is self-contained.
+- *Consequence:* Home Assistant builds an add-on from its own folder only, so the Dockerfile
+  **clones the server from git** (`INTERVALS_MCP_REF`, default `main`, set in `build.yaml`). It
+  installs the dependencies from the committed `uv.lock` (`uv export --frozen`, pip hash-checking
+  mode, `--only-binary=:all:`) and then the package with `--no-deps`. **The PR must be merged to
+  `main` before the add-on builds**, or set `INTERVALS_MCP_REF` to the branch.
+
+**Files:** `config.yaml`, `build.yaml`, `Dockerfile`, `run.py`, `translations/en.yaml`, `DOCS.md`,
+`README.md`, `CHANGELOG.md`, `nginx/intervals.conf`.
+
+| Topic | Choice |
+|---|---|
+| Base image | `ghcr.io/home-assistant/{amd64,aarch64}-base-python:3.13-alpine3.24-2026.10.3`, verified to exist in GHCR for both architectures, pinned for reproducibility. |
+| aarch64 | **Included, because it costs nothing.** All 64 locked runtime dependencies have binary musllinux wheels for both `x86_64` and `aarch64` (checked with `pip download --only-binary=:all: --platform musllinux_1_2_*`). Nothing compiles. Not built on real ARM hardware. |
+| Options → env | `run.py` (Python rather than bashio, so it can be unit-tested) reads `/data/options.json`, exports only non-empty options, sets `DATA_DIR=/data` and `FORWARDED_ALLOW_IPS=172.30.32.0/23,127.0.0.1` (the hassio network NGINX comes from), then `exec`s the server, which becomes PID 1, so the Docker `HEALTHCHECK` works. |
+| Refusing to start | No `path_secret` and no OAuth → exit 1 with a clear message. `path_secret` without `api_key`/`athlete_id` → exit. OAuth without `public_base_url` or with half the credentials → exit. An empty allowlist → warning (it rejects everyone, as specified). Messages never contain values. |
+| Exposure | `ingress: false`, `ports: 8099/tcp: 8099`, `watchdog: http://[HOST]:[PORT:8099]/healthz`. |
+| Secrets in the UI | `password` type for `api_key`, `path_secret`, `oauth_client_secret`, `webhook_secret` and `ha_webhook_url` (it embeds the HA webhook ID). |
+| Extra option | `--log-level` was added to the server CLI so the add-on's `log_level` has an effect (uvicorn log level in remote mode). |
+
+**NGINX snippet** (`ha-addon/nginx/intervals.conf`, for `/share/nginx_proxy/`): a `server` block
+for `intervals.gadde.nu` on 443 with `http2`. It proxies to
+`http://homeassistant.local.hass.io:8099` (the add-on's published host port, the same host name the
+NGINX add-on uses for HA Core). It passes `Host`, `X-Real-IP`, `X-Forwarded-For/-Proto/-Host/-Port`
+and keeps HTTP/1.1 keep-alive. It turns off `proxy_buffering`, `proxy_request_buffering` and
+`proxy_cache`, and allows 1 h read/send timeouts for SSE. It sets `access_log off`, and
+`error_log … crit`, because NGINX's error-level upstream messages include the request line.
+`client_max_body_size 2m`.
+
+**Verification in this environment**
+
+- `tests/test_ha_addon.py` (20 tests): option mapping, every refusal path, no values in messages,
+  stale-env isolation, server argv, `exec`, consistency between config, schema, translations and
+  the launcher, the `build.yaml` base images, and the required NGINX directives.
+- **A Docker build was not possible:** the Docker daemon could be started, but the network policy
+  forbids GHCR's blob host (`pkg-containers.githubusercontent.com`), so the base image cannot be
+  pulled. There was no workaround.
+- Instead, the Dockerfile's `RUN` steps were replayed in a clean venv: clone the pushed branch,
+  `uv export --frozen`, a hash-checked binary-only install, then `--no-deps` install the package.
+  The add-on was then started through `run.py` in three scenarios:
+  - no auth: refuses to start;
+  - secret path: `/healthz` returns 200, `/mcp` 404, the secret path 200, the healthcheck probe
+    passes, and the secret is in no log line;
+  - OAuth plus webhooks: 401 with `WWW-Authenticate`, metadata from `public_base_url`, a webhook
+    stored, `/data/oauth` at 0700 and the event log at 0600.

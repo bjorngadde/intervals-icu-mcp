@@ -1,0 +1,5 @@
+# Home Assistant add-on repository manifest. Home Assistant scans the top-level
+# folders of this repository for add-ons; only ha-addon/ contains one.
+name: Intervals.icu MCP add-on
+url: https://github.com/bjorngadde/intervals-icu-mcp
+maintainer: bjorngadde
