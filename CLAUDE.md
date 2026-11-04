@@ -120,8 +120,7 @@ PRs are **squash-merged only** (repo setting: commit title from `PR_TITLE`, body
 
 CHANGELOG.md is **manual** — there is no automated changelog generation. Entries are the **maintainer's responsibility**: community PRs deliberately do not include them (CONTRIBUTING.md and the PR template say so, to avoid `[Unreleased]` merge conflicts and keep SemVer classification in one place). Add the `[Unreleased]` bullet at merge time, while the PR context is fresh; `/release-check` verifies every user-facing commit since the last tag has an entry before a release is cut. The only release-related automation:
 - Package version comes from the git tag via `hatch-vcs` (no `pyproject.toml` bump needed)
-- `publish.yml` syncs `server.json` version from the tag and publishes to PyPI + MCP Registry
-- `release.yml` builds and pushes the Docker image
+- Upstream's `publish.yml` (PyPI + MCP Registry) and `release.yml` (Docker image) publish under upstream's names, so **this fork removed them**; it publishes nothing. The Home Assistant add-on builds from git and is checked by `ha-addon.yml`.
 
 To cut a release:
 1. Rename `## [Unreleased]` → `## [X.Y.Z] — YYYY-MM-DD` in CHANGELOG.md
@@ -142,7 +141,8 @@ Running list of deferred breaking cleanups (do together in the next major; keep 
 
 - `.env` — Local credentials (not in git)
 - `.env.example` — Template for credentials
-- `openapi-spec.json` — Intervals.icu API specification. Kept up to date automatically via `.github/workflows/update-openapi.yml` (or run `curl -s https://intervals.icu/api/v1/docs > openapi-spec.json` to update locally).
+- `openapi-spec.json` — Intervals.icu API specification. Upstream refreshes it weekly and it arrives with upstream merges (this fork removed the duplicate `update-openapi.yml`); to refresh locally run `curl -s https://intervals.icu/api/v1/docs > openapi-spec.json`.
 - `uv.lock` — Locked dependencies (commit this)
 - `.github/workflows/test.yml` — CI tests
-- `.github/workflows/release.yml` — Docker release automation
+- `.github/workflows/ha-addon.yml` — Home Assistant add-on build + smoke test, NGINX snippet check
+- `.github/workflows/audit.yml` — Weekly CVE audit of locked runtime dependencies

@@ -1,11 +1,10 @@
 name: Test
 
 on:
+  # Every branch including main: the fork has no release workflow that ran the
+  # tests on main (upstream's release.yml did, via workflow_call).
   push:
-    branches-ignore:
-      - main
   pull_request:
-  workflow_call:
 
 jobs:
   test:

@@ -1,6 +1,6 @@
 version: 2
 updates:
-  # uv.lock pins what the Docker image installs; PyPI installs resolve fresh.
+  # uv.lock pins what the Home Assistant add-on installs (hash-checked).
   - package-ecosystem: uv
     directory: /
     schedule:
@@ -8,12 +8,6 @@ updates:
     groups:
       python-dependencies:
         patterns: ["*"]
-
-  # Python base image and the pinned uv image in the Dockerfile.
-  - package-ecosystem: docker
-    directory: /
-    schedule:
-      interval: weekly
 
   - package-ecosystem: github-actions
     directory: /

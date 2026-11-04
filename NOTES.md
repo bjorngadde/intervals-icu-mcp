@@ -376,3 +376,25 @@ and keeps HTTP/1.1 keep-alive. It turns off `proxy_buffering`, `proxy_request_bu
 | 5 | **NGINX rate limit:** `limit_req_zone … rate=10r/s`, `burst=50 nodelay`, `429`. | MCP sessions and the OAuth redirects are bursty, hence the large burst. 10 r/s per IP stops brute force without getting in Claude's way. |
 | 6 | **`daily_coach_check` prompt** (the 10th prompt): what changed → readiness → recent training → current plan → zones → decide → write (tag plus `external_id`, upsert on OAuth) → verify parsing and push errors → short report. | It only touches events the coach created. It calls `icu_get_recent_events` only if that tool is registered. Arguments: `days_ahead` and `coach_tag`. |
 | 7 | **Garmin stub warning:** a `GARMIN_CONNECT` activity with no metrics gets a `data_availability` note. Any metric-less activity that the API annotates with `_note` gets a generic one. List tools mark such items `data_restricted` and add one summary warning. | The shape of a blocked Garmin activity is unknown, so this uses the same signal as the existing Strava check (all core metrics missing), and quotes the API's `_note` when there is one. Strava messages are unchanged. Refine it once a real blocked activity has been seen. |
+
+---
+
+## CI in the fork
+
+The fork inherited upstream's GitHub workflows, and some of them publish under upstream's names.
+`release.yml` failed on every push to `main`, because it pushed the Docker image to
+`ghcr.io/hhopke/intervals-icu-mcp`.
+
+| Workflow / config | Status | Why |
+|---|---|---|
+| `test.yml` | kept; now also runs on pushes to `main` | Upstream skipped `main` and ran the tests there through `release.yml`. |
+| `ha-addon.yml` | kept | Builds and smoke-tests the add-on; checks the NGINX snippet. |
+| `audit.yml` | kept | Weekly CVE audit of the locked runtime dependencies (an internet-facing server). |
+| `release.yml` | removed | Built and pushed upstream's Docker image. The add-on builds from git instead. |
+| `publish.yml` | removed | Published upstream's PyPI package and MCP Registry entry. |
+| `claude.yml` | removed | `@claude` GitHub Action; needs a `CLAUDE_CODE_OAUTH_TOKEN` secret the fork doesn't have. |
+| `update-openapi.yml` + `.github/scripts/openapi_diff.py` | removed | Upstream refreshes the spec weekly and it arrives with upstream merges. A second refresh would collide with it. |
+| `dependabot.yml` | kept the uv and Actions updates; dropped the Docker entry | The root Dockerfile's image isn't shipped from the fork. |
+
+When merging upstream changes, expect upstream to keep editing the removed files. Resolve such
+conflicts by keeping them deleted.
