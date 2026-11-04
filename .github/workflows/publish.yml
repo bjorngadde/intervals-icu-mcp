@@ -6,6 +6,8 @@ on:
 
 jobs:
   pypi:
+    # Publishes upstream's PyPI package and MCP Registry entry: upstream repository only.
+    if: github.repository == 'hhopke/intervals-icu-mcp'
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
@@ -22,6 +24,7 @@ jobs:
 
   mcp-registry:
     needs: pypi
+    if: github.repository == 'hhopke/intervals-icu-mcp'
     runs-on: ubuntu-latest
     permissions:
       id-token: write
