@@ -396,5 +396,10 @@ The fork inherited upstream's GitHub workflows, and some of them publish under u
 | `update-openapi.yml` + `.github/scripts/openapi_diff.py` | removed | Upstream refreshes the spec weekly and it arrives with upstream merges. A second refresh would collide with it. |
 | `dependabot.yml` | kept the uv and Actions updates; dropped the Docker entry | The root Dockerfile's image isn't shipped from the fork. |
 
+Also removed, because they were upstream-specific: `.github/FUNDING.yml` (a "Sponsor"
+button for hhopke on this repository's page), the hhopke Discussions links in
+`.github/ISSUE_TEMPLATE/config.yml` (the Intervals.icu forum and MCP spec links stay), and the
+`.claude/skills/release-write` skill (upstream's tag → PyPI release flow).
+
 When merging upstream changes, expect upstream to keep editing the removed files. Resolve such
 conflicts by keeping them deleted.

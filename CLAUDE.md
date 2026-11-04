@@ -106,7 +106,6 @@ The following skills are available in `.claude/skills/`:
 | `/commit` | Analyze changes and create conventional commits |
 | `/add-tool` | Step-by-step workflow for adding new MCP tools |
 | `/release-check` | Run pre-release verification and summarize results |
-| `/release-write` | Draft GitHub Release notes from CHANGELOG, tag, and publish |
 
 ## Verification
 
