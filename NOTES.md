@@ -119,3 +119,40 @@ PY
 Look at whether activities whose `source` is `GARMIN_CONNECT` come back with full data. If they
 come back as stubs (the way Strava ones do: `_note` / missing streams), Intervals.icu has started
 blocking Garmin data in the API. Also check that the wellness rows have HRV and sleep values.
+
+---
+
+## Phase 1 — Per-request client
+
+**What changed**
+
+- `ICUConfig` gained two *private* attributes: `_bearer_token` and `_token_athlete_id`.
+  pydantic-settings never fills private attributes from env or `.env`, so a bearer token can only
+  come from an authenticated request. It never comes from process-wide config.
+- `ICUConfig.with_bearer_token(token, athlete_id)` returns a **copy** that:
+  - drops the API key;
+  - sets `intervals_icu_athlete_id="0"` (the token owner);
+  - keeps the non-credential settings (delete mode).
+  The original config is untouched.
+- `ICUClient` sends `Authorization: Bearer …` when the config carries a token, and HTTP Basic
+  otherwise. In bearer mode, 401 and 403 now produce OAuth-specific messages ("reconnect", "missing
+  scope").
+- `middleware.resolve_request_config()` runs on every tool call, and also for the athlete-profile
+  resource. If the request was authenticated by the Intervals.icu OAuth provider (the
+  `AccessToken` carries the `intervals_icu_athlete_id` claim), it returns the bearer-mode config.
+  Otherwise it returns the API-key config, exactly as before. A token *without* that claim (some
+  other auth provider) stays in API-key mode.
+- `normalize_athlete_id()` maps `784427`, `i784427` and `I784427` all to `i784427`.
+- `icu_list_athletes` and `icu_get_fitness_summary` show the token owner's real ID instead of
+  `"0"` (`config.display_athlete_id`).
+- `intervals_icu_api_key` is now `repr=False`, so it no longer shows up in a config repr.
+
+**Decision: athlete `0` rather than the token's athlete ID.** This follows the brief, and it is
+the safest choice: the API resolves `0` server-side from the token, so no ID normalization can go
+wrong. An explicit `athlete_id` parameter on a tool is still passed through. Intervals.icu then
+enforces what the token may access.
+
+**Compatibility:** in stdio and API-key mode nothing changes. 630 of the existing tests pass
+unchanged. `tests/test_auth_modes.py` adds 23 tests that cover both client modes, the copy
+semantics, the env-isolation of the token, middleware switching between consecutive calls, and the
+error messages.

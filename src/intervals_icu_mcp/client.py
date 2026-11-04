@@ -57,14 +57,23 @@ class ICUClient:
 
     async def __aenter__(self) -> "ICUClient":
         """Async context manager entry."""
-        # Use Basic Auth with username "API_KEY" and password as the actual API key
-        auth = httpx.BasicAuth(username="API_KEY", password=self.config.intervals_icu_api_key)
-
-        self._client = httpx.AsyncClient(
-            base_url=self.BASE_URL,
-            timeout=30.0,
-            auth=auth,
-        )
+        bearer_token = self.config.bearer_token
+        if bearer_token:
+            # OAuth mode: a per-request access token. Athlete "0" in paths resolves to
+            # the token owner (see ICUConfig.with_bearer_token).
+            self._client = httpx.AsyncClient(
+                base_url=self.BASE_URL,
+                timeout=30.0,
+                headers={"Authorization": f"Bearer {bearer_token}"},
+            )
+        else:
+            # Use Basic Auth with username "API_KEY" and password as the actual API key
+            auth = httpx.BasicAuth(username="API_KEY", password=self.config.intervals_icu_api_key)
+            self._client = httpx.AsyncClient(
+                base_url=self.BASE_URL,
+                timeout=30.0,
+                auth=auth,
+            )
         return self
 
     async def __aexit__(
@@ -104,7 +113,20 @@ class ICUClient:
 
             # Handle specific error codes
             if response.status_code == 401:
+                if self.config.bearer_token:
+                    raise ICUAPIError(
+                        "Unauthorized. The Intervals.icu OAuth token was rejected "
+                        "(revoked or expired). Reconnect the MCP connector.",
+                        401,
+                    )
                 raise ICUAPIError("Unauthorized. Check your API key and athlete ID.", 401)
+
+            if response.status_code == 403 and self.config.bearer_token:
+                raise ICUAPIError(
+                    "Forbidden. The Intervals.icu OAuth token lacks the scope this call "
+                    "needs, or the athlete has not granted access. See OAUTH_SCOPES.",
+                    403,
+                )
 
             if response.status_code == 404:
                 raise ICUAPIError("Resource not found.", 404)

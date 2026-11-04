@@ -814,13 +814,19 @@ if _DELETE_MODE == "full":
 @mcp.resource("intervals-icu://athlete/profile")
 async def athlete_profile_resource() -> str:
     """Complete athlete profile with fitness metrics and sport settings for context."""
-    from .auth import load_config
+    from fastmcp.exceptions import ToolError
+
     from .client import ICUAPIError, ICUClient
+    from .middleware import resolve_request_config
     from .response_builder import ResponseBuilder
     from .sport_settings_format import format_sport_settings_entry
 
-    # Load config directly since resources don't go through middleware
-    config = load_config()
+    # Resources don't go through the tool middleware, so resolve the per-request
+    # config (bearer token or API key) here.
+    try:
+        config = resolve_request_config()
+    except ToolError as e:
+        return ResponseBuilder.build_error_response(str(e), error_type="auth_error")
 
     try:
         async with ICUClient(config) as client:
