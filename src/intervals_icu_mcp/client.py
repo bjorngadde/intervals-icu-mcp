@@ -1401,19 +1401,23 @@ class ICUClient:
         self,
         events_data: list[dict[str, Any]],
         athlete_id: str | None = None,
+        upsert: bool = False,
     ) -> list[Event]:
         """Create multiple calendar events in a single request.
 
         Args:
             events_data: List of event data dictionaries
             athlete_id: Athlete ID (uses config default if not provided)
+            upsert: Update events with a matching external_id created by the same
+                OAuth application instead of creating new ones (OAuth tokens only)
 
         Returns:
-            List of created Event objects
+            List of created (or updated) Event objects
         """
         athlete_id = athlete_id or self.config.intervals_icu_athlete_id
+        params = {"upsert": "true"} if upsert else None
         response = await self._request(
-            "POST", f"/athlete/{athlete_id}/events/bulk", json=events_data
+            "POST", f"/athlete/{athlete_id}/events/bulk", json=events_data, params=params
         )
         adapter = TypeAdapter(list[Event])
         return adapter.validate_python(response.json())

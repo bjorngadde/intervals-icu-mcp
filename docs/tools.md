@@ -185,7 +185,7 @@ The threaded notes/comments shown under an activity — the user's own training 
 
 | Tool                    | Description                                                |
 | ----------------------- | ---------------------------------------------------------- |
-| `icu_get_calendar_events`   | Get planned events and workouts from calendar              |
+| `icu_get_calendar_events`   | Get planned events and workouts from calendar; filter by `external_id_prefix`; shows `push_errors` when a workout failed to sync to Garmin/Zwift |
 | `icu_get_upcoming_workouts` | Upcoming planned WORKOUT **calendar events** only — not workout-library templates (see [Workout Library](#workout-library-8-tools)); returns event IDs |
 | `icu_get_annual_training_plan` | Read ATP periodization — weekly TSS targets, phases, ATP week notes (`week_note`; default: 365 days ahead; narrow with `days_ahead`/`days_back` for a specific month) |
 | `icu_get_event`             | Get details for a specific event                           |
@@ -193,7 +193,7 @@ The threaded notes/comments shown under an activity — the user's own training 
 | `icu_create_event`          | Create new calendar events (workouts, races, notes, goals); optional `hide_from_athlete` / `athlete_cannot_edit`, `indoor`, `external_id` |
 | `icu_update_event`          | Modify existing calendar events (only the fields passed), including `hide_from_athlete` / `athlete_cannot_edit`, `indoor`, `external_id` |
 | `icu_delete_event`          | Remove an event from the calendar *(safe mode: future events only; envelope returns `deleted` / `skipped`)* |
-| `icu_bulk_create_events`    | Create multiple events in a single operation               |
+| `icu_bulk_create_events`    | Create multiple events in a single operation; `upsert_by_external_id` updates events this OAuth connector created earlier instead of duplicating them |
 | `icu_bulk_update_event_access` | Hide/reveal or lock/unlock many planned WORKOUT events by ID list or date range — the web UI's "Hide from athlete" / "Athlete cannot edit" checkboxes. Other categories are reported as `skipped`; results split into `updated` / `unchanged` / `skipped` / `failed` |
 | `icu_bulk_delete_events`    | Delete multiple events in a single operation *(safe mode partitions into `deleted` / `skipped`)* |
 | `icu_duplicate_events`      | Duplicate one or more events with configurable copies and spacing |

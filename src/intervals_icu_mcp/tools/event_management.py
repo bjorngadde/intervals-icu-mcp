@@ -10,6 +10,7 @@ from ..auth import ICUConfig
 from ..client import ICUAPIError, ICUClient
 from ..models import Event
 from ..response_builder import ResponseBuilder
+from .events import format_push_errors
 
 PAST_EVENT_HINT = (
     "Past events (today and earlier) require INTERVALS_ICU_DELETE_MODE=full. "
@@ -346,6 +347,9 @@ def _event_to_dict(event: Event) -> dict[str, Any]:
         result["indoor"] = event.indoor
     if event.external_id:
         result["external_id"] = event.external_id
+    push_errors = format_push_errors(event)
+    if push_errors:
+        result["push_errors"] = push_errors
 
     parse_info = _workout_parse_info(event)
     if parse_info:
@@ -722,6 +726,12 @@ async def bulk_create_events(
         "athlete_cannot_edit, indoor, external_id. See "
         "intervals-icu://event-categories for the category enum. " + WORKOUT_SYNTAX_HINT,
     ],
+    upsert_by_external_id: Annotated[
+        bool,
+        "Re-planning: update events with the same external_id that this connector "
+        "created earlier instead of adding duplicates. Every event needs external_id. "
+        "OAuth connections only",
+    ] = False,
     athlete_id: Annotated[str | None, "Athlete ID (for coaches managing multiple athletes)"] = None,
     ctx: Context | None = None,
 ) -> str:
@@ -752,6 +762,25 @@ async def bulk_create_events(
             )
 
         events_data: list[dict[str, Any]] = parsed_data  # type: ignore[assignment]
+
+        if upsert_by_external_id:
+            if config.auth_mode != "bearer":
+                return ResponseBuilder.build_error_response(
+                    "upsert_by_external_id only works over an OAuth connection: Intervals.icu "
+                    "matches external_id against events created by the same OAuth app.",
+                    error_type="validation_error",
+                    suggestions=[
+                        "Find earlier events with icu_get_calendar_events(external_id_prefix=...) "
+                        "and change them with icu_update_event instead.",
+                    ],
+                )
+            missing = [i for i, e in enumerate(events_data) if not e.get("external_id")]
+            if missing:
+                return ResponseBuilder.build_error_response(
+                    f"upsert_by_external_id needs an external_id on every event; "
+                    f"missing on event(s) {missing}.",
+                    error_type="validation_error",
+                )
 
         for i, event_data in enumerate(events_data):
             if "start_date_local" not in event_data:
@@ -833,7 +862,9 @@ async def bulk_create_events(
                 event_data["training_availability"] = availability
 
         async with ICUClient(config) as client:
-            created_events = await client.bulk_create_events(events_data, athlete_id=athlete_id)
+            created_events = await client.bulk_create_events(
+                events_data, athlete_id=athlete_id, upsert=upsert_by_external_id
+            )
 
             events_result = [_event_to_dict(event) for event in created_events]
 
@@ -841,7 +872,12 @@ async def bulk_create_events(
                 data={"events": events_result},
                 query_type="bulk_create_events",
                 metadata={
-                    "message": f"Successfully created {len(created_events)} events",
+                    "message": (
+                        f"Successfully created or updated {len(created_events)} events "
+                        "(matched on external_id)"
+                        if upsert_by_external_id
+                        else f"Successfully created {len(created_events)} events"
+                    ),
                     "count": len(created_events),
                 },
             )
