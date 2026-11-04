@@ -188,10 +188,15 @@ def build_log_config(secrets: list[str], log_level: str = "info") -> dict[str, A
 
 
 def install_root_redaction(secrets: list[str]) -> None:
-    """Redact secrets from records that reach the root logger's handlers too."""
+    """Redact secrets in every handler outside uvicorn's own config.
+
+    FastMCP's logger does not propagate to root and has its own handlers, so it
+    is covered explicitly alongside the root logger.
+    """
     redactor = SecretRedactingFilter(secrets)
-    for handler in logging.getLogger().handlers:
-        handler.addFilter(redactor)
+    for name in ("", "fastmcp", "mcp"):
+        for handler in logging.getLogger(name).handlers:
+            handler.addFilter(redactor)
 
 
 # --------------------------------------------------------------------------- gate
@@ -266,6 +271,13 @@ class RemoteApp:
     description: list[str] = field(default_factory=list[str])
 
 
+async def _health(request: Any) -> Any:
+    """Static liveness: no auth, no upstream calls, nothing sensitive."""
+    from starlette.responses import JSONResponse
+
+    return JSONResponse({"status": "ok"})
+
+
 def _unwrap_auth(endpoint: Any) -> Any:
     """Return the StreamableHTTP ASGI app inside FastMCP's RequireAuthMiddleware."""
     inner = getattr(endpoint, "app", None)
@@ -321,6 +333,11 @@ def build_remote_app(
         app = server.http_app(path=MASKED_MCP_PATH, transport="http")
     else:
         app = server.http_app(path=mcp_path, transport="http")
+
+    existing = {r.path for r in app.router.routes if isinstance(r, Route)}
+    for health_path in HEALTH_PATHS:
+        if health_path not in existing:
+            app.router.routes.append(Route(health_path, endpoint=_health, methods=["GET"]))
 
     public_paths = {
         r.path for r in app.router.routes if isinstance(r, Route) and r.path != MASKED_MCP_PATH

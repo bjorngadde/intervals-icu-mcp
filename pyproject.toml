@@ -36,7 +36,8 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "fastmcp>=3.0.0",
+    # 4.1.4: oauth.py subclasses OAuthProxy (upstream-client and callback hooks).
+    "fastmcp>=4.1.4",
     "httpx>=0.28.1",
     "pydantic>=2.12.0",
     "pydantic-settings>=2.11.0",

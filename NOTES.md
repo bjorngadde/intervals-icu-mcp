@@ -206,3 +206,67 @@ the secret appeared zero times in the log.
   the LAN port open. (b) A Starlette route literally named `/<secret>/mcp`. Rejected: Starlette's
   router matches with a regex, which is not constant-time, and FastMCP logs the mount path at
   startup.
+
+---
+
+## Phase 3 — OAuth via Intervals.icu
+
+**Built:** `src/intervals_icu_mcp/oauth.py` defines `IntervalsOAuthProvider`, a subclass of
+FastMCP 4.1.4's `OAuthProxy`. It is turned on when `INTERVALS_OAUTH_CLIENT_ID` or
+`INTERVALS_OAUTH_CLIENT_SECRET` is set. It works on its own or alongside the secret path: then
+`/mcp` uses OAuth and `/<secret>/mcp` uses the API key, both served by the same session manager.
+User documentation: `docs/oauth.md`, plus a short README section.
+
+**FastMCP:** no upgrade was needed. 4.1.4 already provides `OAuthProxy` with DCR, PKCE, CIMD, a
+consent screen, encrypted storage and these override points:
+
+- `_create_upstream_oauth_client`, documented as "Subclasses can override";
+- `extra_authorize_params`, `token_endpoint_auth_method` and `forward_resource`;
+- `_handle_idp_callback`, a thin wrapper.
+
+The `pyproject.toml` floor went from `fastmcp>=3.0.0` to `>=4.1.4`, because those hooks are
+version-specific. Only the lock metadata changed.
+
+### Decisions
+
+| Topic | Choice | Why / alternatives |
+|---|---|---|
+| Token verification | **Stored mapping.** At code exchange the server stores `sha256(upstream token) → {athlete_id, name, scopes}` in the encrypted store. `verify_token` checks it and the *current* allowlist on every request. | `GET /athlete/0` on every request would add latency and an Intervals.icu rate-limit cost to every MCP message, and it needs `SETTINGS:READ`. A cache would hide revocations anyway. Revocation still surfaces: the next API call returns 401 with a "reconnect" message. Removing an athlete from the allowlist takes effect immediately. |
+| Upstream token client | Own `IntervalsUpstreamClient` (httpx) in place of FastMCP's generic one. | It sends **exactly** the documented form fields (`client_id`, `client_secret`, `code`, `code_verifier`) and nothing else (no `grant_type`, `redirect_uri` or `scope`). It normalises the athlete ID and scope, enforces the allowlist *before* any MCP token is issued, records the mapping, and is mockable with respx. |
+| Scope formatting | Upstream: `scope=A,B,C` through `extra_authorize_params`, which overrides OAuthProxy's space-joined value. Towards MCP: space-separated. A response `scope` with commas is parsed; a missing one falls back to the requested scopes. | Intervals.icu uses commas; MCP and OAuth clients use spaces. |
+| Default scopes | `ACTIVITY:READ,WELLNESS:READ,CALENDAR:WRITE,SETTINGS:READ`, **derived in code** from `COACH_TOOLS` via `SCOPE_BY_TOOL`. A test makes sure every registered tool has a mapping. | It is the minimal set for the daily coach job, and it matches the brief's example. `SETTINGS:READ` is needed for `athlete/0` (profile, zones). Library and other writes are left out. |
+| Required scopes | The configured scopes are the verifier's `required_scopes`, so the token must carry all of them; otherwise MCP returns 403 `insufficient_scope`. | This fails loudly when a user unticks a scope, instead of half-working. |
+| Allowlist rejection | At the callback: a 403 HTML page that names the athlete and `ALLOWED_ATHLETE_IDS`, and a best-effort `DELETE /api/v1/disconnect-app` with the fresh token. The MCP client gets no code. | It is a clear error at the moment the human is looking, and no orphaned grant is left at Intervals.icu. |
+| Persistence | A FileTreeStore wrapped in Fernet encryption under `DATA_DIR/oauth`, directory mode 0700. The signing and encryption keys are HKDF-derived from the client secret (FastMCP's default scheme), or from `OAUTH_JWT_SIGNING_KEY` when set. | Both encryption and restrictive permissions, as the brief asked. Honest caveat: on the add-on the client secret is also on `/data` (in `options.json`), so the encryption mostly protects backups and copies that leave out `options.json`. The 0700 permissions are the real local barrier. |
+| Consent screen | FastMCP's consent page stays **on** (`require_authorization_consent=True`). | It protects against confused-deputy / AS-in-the-middle attacks for a proxy that does DCR. It costs one extra click per login. |
+| MCP-client redirect URIs | Defaults to Claude's callbacks (`claude.ai` and `claude.com`) plus loopback. `OAUTH_ALLOWED_CLIENT_REDIRECT_URIS` overrides it; `*` allows any. | Least privilege: the only real client is Claude. Claude Code and MCP Inspector use loopback. |
+| Resource indicator | `forward_resource=False`. | Intervals.icu does not document RFC 8707. Sending an unknown `resource` parameter is a needless risk. |
+| Public URLs | All of them come from `PUBLIC_BASE_URL` (https is required except for localhost). `X-Forwarded-*` is honoured by uvicorn (`proxy_headers`, `FORWARDED_ALLOW_IPS`) for client IP and scheme, but it can never change the issuer or callback URLs (there is a test). | TLS terminates at NGINX. Building URLs from headers would let a spoofed `Host` change the issuer. |
+| Token lifetime | FastMCP's default for upstream tokens with no expiry: one year. There is no refresh token. | Intervals.icu tokens never expire. To revoke, use the allowlist, Intervals.icu "disconnect", or rotate the client secret. |
+
+### Differences between the brief and the code/docs (flagged)
+
+- The brief lists the token-endpoint fields as `client_id, client_secret, code, code_verifier`.
+  That is implemented literally. If Intervals.icu also expects `grant_type=authorization_code` or
+  `redirect_uri` (standard RFC 6749), the token exchange will return a 400; it is a one-line
+  change in `IntervalsUpstreamClient.fetch_token`. **Live check.**
+- The brief says `X:WRITE` covers `X:READ` (the default has `CALENDAR:WRITE` and no
+  `CALENDAR:READ`). The OpenAPI spec has no scope information to confirm this. **Live check:**
+  `icu_get_calendar_events` works with the default scopes.
+
+### Tests (`tests/test_oauth.py`, 28 tests, Intervals.icu mocked with respx)
+
+- Full proxy flow, as Claude does it: DCR, authorize with PKCE, consent with CSRF and cookie,
+  the upstream authorize URL (exact callback, comma scopes, S256, no `resource`), callback, token
+  exchange (exact form fields), `/token` with PKCE, MCP `initialize`, and a tool call. The tool
+  call reaches `GET /athlete/0` with `Bearer <upstream token>`.
+- Allowlist: accept; reject with a 403 page and revocation; empty list rejects everyone; a bare
+  numeric ID matches; the allowlist is re-checked after a restart.
+- Persistence: a token issued before a "restart" (new server, provider and app on the same
+  `DATA_DIR`) still works, and the DCR client is still known. A rotated client secret invalidates
+  tokens. Files on disk never contain the token or the athlete ID, and the directory is 0700.
+- 401 with `WWW-Authenticate` / `resource_metadata` for missing and invalid tokens; both metadata
+  documents; `X-Forwarded-Host` cannot change the URLs; foreign redirect URIs are rejected at DCR.
+- Scope parsing and formatting, the default-scope derivation, and the tool-to-scope coverage.
+- Nothing secret is logged, with FastMCP's non-propagating logger captured at DEBUG.
+- OAuth and the secret path side by side.
