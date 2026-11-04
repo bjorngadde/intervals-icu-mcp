@@ -1114,6 +1114,46 @@ Then offer to create the events in my calendar if I approve the plan."""
 
 
 @mcp.prompt()
+async def daily_coach_check(days_ahead: str = "2", coach_tag: str = "ai-coach") -> str:
+    """Daily coaching routine: check readiness, review recent training, and (re)plan the next days.
+
+    Args:
+        days_ahead: How many days ahead to plan (default 2)
+        coach_tag: Tag and external_id prefix that marks events the coach created
+    """
+    prefix = f"{coach_tag}-"
+    return f"""You are my training coach. Run today's check and plan the next {days_ahead} day(s).
+
+1. What changed: if the icu_get_recent_events tool is available, call it (default window
+   is the last 24 h) to see new uploads, wellness syncs and calendar edits. If it is not
+   available, continue.
+2. Readiness: icu_get_wellness_data for the last 7 days (HRV, resting HR, sleep) and
+   icu_get_fitness_summary (CTL / ATL / TSB). Compare today with my 7-day baseline.
+3. Recent training: icu_get_recent_activities with days_back=7. If an activity carries
+   a data_availability warning (Strava- or Garmin-restricted data), say so and do not
+   infer metrics for it.
+4. The plan as it stands: icu_get_calendar_events with days_back=1 and
+   days_ahead={days_ahead}. Respect races, notes and SICK/INJURED/HOLIDAY blocks. Events
+   whose external_id starts with "{prefix}" are yours; also call it with
+   external_id_prefix="{prefix}" to list only those. Report any push_errors.
+5. Zones: icu_get_sport_settings before prescribing intensities.
+6. Decide per day: keep, adjust, or replace YOUR events. Never change or delete events
+   you did not create — suggest changes to those instead.
+7. Write each planned workout as category WORKOUT with event_type (Ride, Run, ...),
+   indoor=true for trainer sessions, a clear name, tags ["{coach_tag}"],
+   external_id "{prefix}YYYY-MM-DD-<short-slug>", and the steps in `description` using
+   Intervals.icu workout syntax (intervals-icu://workout-syntax). Prefer
+   icu_bulk_create_events with upsert_by_external_id=true (OAuth connections) so
+   re-planning updates instead of duplicating; otherwise update existing events with
+   icu_update_event and create new ones with icu_create_event.
+8. Verify: every written workout should come back with workout_parsed=true; fix and
+   rewrite any that did not. Then re-read the calendar and report push_errors (sync to
+   Garmin / Zwift can lag a few minutes).
+9. Report briefly: readiness verdict with the numbers behind it, what you changed and
+   why, the plan for the next {days_ahead} day(s), and any warnings."""
+
+
+@mcp.prompt()
 async def verify_setup() -> str:
     """Verify the MCP server is working by exercising core tools against your account."""
     return """Verify my Intervals.icu MCP server setup by running through each tool category.

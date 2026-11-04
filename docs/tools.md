@@ -1,6 +1,6 @@
 # Tool, Resource, and Prompt Reference
 
-Complete inventory of everything the Intervals.icu MCP server exposes: up to 73 tools across 11 categories, 4 MCP Resources, and 9 MCP Prompts.
+Complete inventory of everything the Intervals.icu MCP server exposes: up to 73 tools across 11 categories, 4 MCP Resources, and 10 MCP Prompts.
 
 ## Delete Safety Mode
 
@@ -283,6 +283,7 @@ Prompt templates for common queries, accessible via prompt suggestions in Claude
 | `icu_recovery_check`          | Recovery assessment with wellness trends and training load               |
 | `icu_training_plan_review`    | Weekly training plan evaluation with workout library                     |
 | `icu_plan_training_week`      | AI-assisted weekly training plan creation based on current fitness       |
+| `daily_coach_check`           | Daily coach routine: readiness, recent training, plan the next days with tagged/`external_id` workouts, verify parsing and device sync |
 | `generate_workout`            | Generate a structured workout with sport, type, and duration parameters  |
 | `verify_setup`                | Exercise core tools against your account to verify the server works      |
 | `verify_multi_athlete`        | Verify coach/multi-athlete access by querying another athlete's data     |
