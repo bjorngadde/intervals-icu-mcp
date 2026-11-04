@@ -123,6 +123,15 @@ ATHLETE_CANNOT_EDIT_HINT = (
     "cannot edit' checkbox). For coaches managing an athlete via athlete_id"
 )
 
+INDOOR_HINT = (
+    "Mark the workout as indoor (trainer / virtual). Intervals.icu uses it to pick "
+    "indoor FTP and to route the workout to trainer apps"
+)
+EXTERNAL_ID_HINT = (
+    "Your own identifier for this event (e.g. 'coach-2026-11-05-z2'), stored as "
+    "external_id so events you created can be found again later"
+)
+
 # Compact, in-context workout-syntax cheat-sheet for the `description` field.
 # Inlined (not only pointed at via the intervals-icu://workout-syntax resource)
 # because many hosts — notably Claude Desktop — never surface MCP resources to the
@@ -333,6 +342,10 @@ def _event_to_dict(event: Event) -> dict[str, Any]:
         result["hide_from_athlete"] = event.hide_from_athlete
     if event.athlete_cannot_edit is not None:
         result["athlete_cannot_edit"] = event.athlete_cannot_edit
+    if event.indoor is not None:
+        result["indoor"] = event.indoor
+    if event.external_id:
+        result["external_id"] = event.external_id
 
     parse_info = _workout_parse_info(event)
     if parse_info:
@@ -386,6 +399,8 @@ async def create_event(
     show_on_ctl_line: Annotated[bool | None, "Render event on the CTL line"] = None,
     hide_from_athlete: Annotated[bool | None, HIDE_FROM_ATHLETE_HINT] = None,
     athlete_cannot_edit: Annotated[bool | None, ATHLETE_CANNOT_EDIT_HINT] = None,
+    indoor: Annotated[bool | None, INDOOR_HINT] = None,
+    external_id: Annotated[str | None, EXTERNAL_ID_HINT] = None,
     athlete_id: Annotated[str | None, "Athlete ID (for coaches managing multiple athletes)"] = None,
     ctx: Context | None = None,
 ) -> str:
@@ -480,6 +495,10 @@ async def create_event(
             event_data["hide_from_athlete"] = hide_from_athlete
         if athlete_cannot_edit is not None:
             event_data["athlete_cannot_edit"] = athlete_cannot_edit
+        if indoor is not None:
+            event_data["indoor"] = indoor
+        if external_id is not None:
+            event_data["external_id"] = external_id
 
         async with ICUClient(config) as client:
             event = await client.create_event(event_data, athlete_id=athlete_id)
@@ -522,6 +541,8 @@ async def update_event(
     show_on_ctl_line: Annotated[bool | None, "Render event on the CTL line"] = None,
     hide_from_athlete: Annotated[bool | None, HIDE_FROM_ATHLETE_HINT] = None,
     athlete_cannot_edit: Annotated[bool | None, ATHLETE_CANNOT_EDIT_HINT] = None,
+    indoor: Annotated[bool | None, INDOOR_HINT] = None,
+    external_id: Annotated[str | None, EXTERNAL_ID_HINT] = None,
     athlete_id: Annotated[str | None, "Athlete ID (for coaches managing multiple athletes)"] = None,
     ctx: Context | None = None,
 ) -> str:
@@ -598,6 +619,10 @@ async def update_event(
             event_data["hide_from_athlete"] = hide_from_athlete
         if athlete_cannot_edit is not None:
             event_data["athlete_cannot_edit"] = athlete_cannot_edit
+        if indoor is not None:
+            event_data["indoor"] = indoor
+        if external_id is not None:
+            event_data["external_id"] = external_id
 
         if not event_data:
             return ResponseBuilder.build_error_response(
@@ -694,7 +719,7 @@ async def bulk_create_events(
         "duration_seconds, distance_meters, training_load, "
         "end_date_local, training_availability, tags (no leading #), color, "
         "show_as_note, not_on_fitness_chart, show_on_ctl_line, hide_from_athlete, "
-        "athlete_cannot_edit. See "
+        "athlete_cannot_edit, indoor, external_id. See "
         "intervals-icu://event-categories for the category enum. " + WORKOUT_SYNTAX_HINT,
     ],
     athlete_id: Annotated[str | None, "Athlete ID (for coaches managing multiple athletes)"] = None,

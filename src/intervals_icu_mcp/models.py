@@ -474,6 +474,7 @@ class Event(BaseModel):
     hide_from_athlete: bool | None = Field(None, alias="hide_from_athlete")
     athlete_cannot_edit: bool | None = Field(None, alias="athlete_cannot_edit")
     external_id: str | None = Field(None, alias="external_id")
+    indoor: bool | None = None
     created_by_id: str | None = Field(None, alias="created_by_id")
     plan_applied: str | None = Field(None, alias="plan_applied")
     # Parsed structured-workout doc. Always present for WORKOUT events, but its

@@ -1764,3 +1764,82 @@ class TestBulkUpdateEventAccess:
         response = json.loads(result)
         assert response["error"]["type"] == "validation_error"
         assert message in response["error"]["message"]
+
+
+class TestPlannedWorkoutFields:
+    """indoor + external_id let a coach write fully specified, re-findable workouts."""
+
+    async def test_create_event_sends_indoor_and_external_id(self, mock_config, respx_mock):
+        mock_ctx = MagicMock()
+        mock_ctx.get_state = AsyncMock(return_value=mock_config)
+        route = respx_mock.post("/athlete/i123456/events").mock(
+            return_value=Response(
+                200,
+                json={
+                    "id": 2001,
+                    "name": "Z2 trainer ride",
+                    "start_date_local": "2026-11-05T00:00:00",
+                    "category": "WORKOUT",
+                    "type": "Ride",
+                    "indoor": True,
+                    "external_id": "coach-2026-11-05",
+                    "tags": ["coach"],
+                },
+            )
+        )
+
+        result = await create_event(
+            start_date="2026-11-05",
+            name="Z2 trainer ride",
+            category="WORKOUT",
+            description="- 45m 65%",
+            event_type="Ride",
+            tags=["coach"],
+            indoor=True,
+            external_id="coach-2026-11-05",
+            ctx=mock_ctx,
+        )
+
+        sent = json.loads(route.calls.last.request.content)
+        assert sent["indoor"] is True
+        assert sent["external_id"] == "coach-2026-11-05"
+        assert sent["type"] == "Ride"
+        assert sent["tags"] == ["coach"]
+        assert sent["description"] == "- 45m 65%"
+        data = json.loads(result)["data"]
+        assert data["indoor"] is True
+        assert data["external_id"] == "coach-2026-11-05"
+
+    async def test_create_event_omits_unset_fields(self, mock_config, respx_mock):
+        mock_ctx = MagicMock()
+        mock_ctx.get_state = AsyncMock(return_value=mock_config)
+        route = respx_mock.post("/athlete/i123456/events").mock(
+            return_value=Response(
+                200,
+                json={"id": 1, "name": "n", "start_date_local": "2026-11-05", "category": "NOTE"},
+            )
+        )
+        await create_event(start_date="2026-11-05", name="n", category="NOTE", ctx=mock_ctx)
+        sent = json.loads(route.calls.last.request.content)
+        assert "indoor" not in sent
+        assert "external_id" not in sent
+
+    async def test_update_event_sends_indoor_false(self, mock_config, respx_mock):
+        mock_ctx = MagicMock()
+        mock_ctx.get_state = AsyncMock(return_value=mock_config)
+        route = respx_mock.put("/athlete/i123456/events/77").mock(
+            return_value=Response(
+                200,
+                json={
+                    "id": 77,
+                    "name": "Outdoor ride",
+                    "start_date_local": "2026-11-05",
+                    "category": "WORKOUT",
+                    "indoor": False,
+                },
+            )
+        )
+        result = await update_event(event_id=77, indoor=False, external_id="x-1", ctx=mock_ctx)
+        sent = json.loads(route.calls.last.request.content)
+        assert sent == {"indoor": False, "external_id": "x-1"}
+        assert json.loads(result)["data"]["indoor"] is False
