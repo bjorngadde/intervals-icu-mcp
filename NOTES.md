@@ -270,3 +270,36 @@ version-specific. Only the lock metadata changed.
 - Scope parsing and formatting, the default-scope derivation, and the tool-to-scope coverage.
 - Nothing secret is logged, with FastMCP's non-propagating logger captured at DEBUG.
 - OAuth and the secret path side by side.
+
+---
+
+## Phase 4 — Webhook receiver
+
+**Built:** `src/intervals_icu_mcp/webhooks.py` (`POST /webhooks/intervals`) and
+`tools/webhook_events.py` (`icu_get_recent_events`). Both are turned on by
+`INTERVALS_WEBHOOK_SECRET` (at least 16 characters). Without it the route does not exist (404)
+and the tool is not registered, so the default tool count stays 70.
+
+| Topic | Choice | Why / alternatives |
+|---|---|---|
+| Authentication | `Authorization` header equals the secret; `Bearer <secret>` is also accepted. A `secret` field in the JSON body is accepted too. All comparisons run in constant time, and a mismatch returns 401. | **Flag:** the brief says the secret arrives in the Authorization header ("Webhook Authorization Header" on the app page). The Intervals.icu forum API docs say the webhook POST body carries a `secret`. Accepting either keeps it working whichever is true. The body secret is never stored. **Live check:** look at a real delivery. |
+| Order of checks | Size limit (1 MiB → 413), then authentication, then JSON validity (400). | An unauthenticated caller learns nothing about parsing. |
+| Payload shape | `{"events": [...]}` (documented), a bare list, or a single event. | The format is not in the OpenAPI spec, so the parser is tolerant. Unknown types are stored with `known_type=false` and logged at info level; they never fail the delivery. |
+| What is stored | One JSONL line per event: `received_at`, `timestamp`, `type`, `known_type`, `athlete_id` (normalised), and `ids` (IDs found in `activity`, `records`, `*_id` and `*_ids`). No payload contents. | Keeps personal data out of the log and keeps lines small. |
+| Rotation | At `WEBHOOK_LOG_MAX_BYTES` (default 1 MiB) the file moves to `.1`, keeping one backup. The file mode is 0600. | Simple and bounded: at most about 2 MiB. Reads merge the backup and the live file. |
+| Allowlist | When `ALLOWED_ATHLETE_IDS` is set, events for other athletes are dropped. | Only the athletes the operator serves are stored. |
+| Tool | `icu_get_recent_events(since, event_types, limit, athlete_id)`. `since` defaults to 24 h ago. It returns the newest events first. In OAuth (bearer) mode it is always filtered to the caller's athlete. | The brief's `get_recent_events(since)`, with the repository's `icu_` prefix. |
+| Home Assistant hook | `HA_WEBHOOK_URL` (off by default). A background POST of `{"source":"intervals.icu","events":[summaries]}` with a 10 s timeout. Failures are logged without the URL, and the URL is in the redaction list because it contains the HA webhook ID. | The server does not try to trigger Claude. HA can, for example, notify Björn or start an automation. |
+
+**Which types to tick on the app page:** `ACTIVITY_UPLOADED`, `WELLNESS_UPDATED`,
+`CALENDAR_UPDATED` and `SPORT_SETTINGS_UPDATED`. `ACTIVITY_ANALYZED` is optional; Intervals.icu
+sends it about 60 s later, once analysis is done. The legacy `CALENDAR_EVENT_*` types are not
+needed.
+
+**Tests** (`tests/test_webhooks.py`, 35 tests): the header, Bearer and body-secret variants; bad
+or missing secrets (401, nothing stored); invalid JSON (400 only after authentication); 413; GET
+returns 405; the four required types with ID extraction and no payload leakage; file mode 0600;
+unknown types stored and logged; allowlist filtering; rotation; the HA hook forwards when
+configured, stays off by default, does not fail the delivery when HA is down, and does not leak
+its URL; the tool's window, type and athlete filters; wiring behind the secret-path gate; and the
+tool registered only with the secret (subprocess check: 70 vs 71 tools).

@@ -816,6 +816,24 @@ if _DELETE_MODE == "full":
     )(delete_custom_item)
 
 
+# Webhook event log tool: registered only when the webhook receiver is configured
+# (INTERVALS_WEBHOOK_SECRET), like the delete-mode gate — no dead tool otherwise.
+from .remote import load_remote_settings as _load_remote_settings
+
+if _load_remote_settings().webhook_enabled:
+    from .tools.webhook_events import get_recent_events
+
+    mcp.tool(
+        name="icu_get_recent_events",
+        annotations={
+            "readOnlyHint": True,
+            "destructiveHint": False,
+            "idempotentHint": True,
+            "openWorldHint": False,
+        },
+    )(get_recent_events)
+
+
 # MCP Resources - Provide ongoing context
 @mcp.resource("intervals-icu://athlete/profile")
 async def athlete_profile_resource() -> str:

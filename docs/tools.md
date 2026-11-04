@@ -190,8 +190,8 @@ The threaded notes/comments shown under an activity — the user's own training 
 | `icu_get_annual_training_plan` | Read ATP periodization — weekly TSS targets, phases, ATP week notes (`week_note`; default: 365 days ahead; narrow with `days_ahead`/`days_back` for a specific month) |
 | `icu_get_event`             | Get details for a specific event                           |
 | `icu_get_seasons`           | List the athlete's seasons (name, start, end) with the curve ID (`s0` = current) for season-based curve queries |
-| `icu_create_event`          | Create new calendar events (workouts, races, notes, goals); optional `hide_from_athlete` / `athlete_cannot_edit` |
-| `icu_update_event`          | Modify existing calendar events (only the fields passed), including `hide_from_athlete` / `athlete_cannot_edit` |
+| `icu_create_event`          | Create new calendar events (workouts, races, notes, goals); optional `hide_from_athlete` / `athlete_cannot_edit`, `indoor`, `external_id` |
+| `icu_update_event`          | Modify existing calendar events (only the fields passed), including `hide_from_athlete` / `athlete_cannot_edit`, `indoor`, `external_id` |
 | `icu_delete_event`          | Remove an event from the calendar *(safe mode: future events only; envelope returns `deleted` / `skipped`)* |
 | `icu_bulk_create_events`    | Create multiple events in a single operation               |
 | `icu_bulk_update_event_access` | Hide/reveal or lock/unlock many planned WORKOUT events by ID list or date range — the web UI's "Hide from athlete" / "Athlete cannot edit" checkboxes. Other categories are reported as `skipped`; results split into `updated` / `unchanged` / `skipped` / `failed` |
@@ -251,6 +251,14 @@ The user's personal additions to their account: custom charts on dashboards, cus
 | `icu_create_custom_item`    | Add a new custom chart, field, zones config, or dashboard panel            |
 | `icu_update_custom_item`    | Modify an existing custom addition (rename, reconfigure, change visibility)|
 | `icu_delete_custom_item`    | Permanently remove a custom addition *(only registered when `INTERVALS_ICU_DELETE_MODE=full`; data-bearing field types may cascade)* |
+
+### Webhook Events (1 tool, opt-in)
+
+Registered only when the webhook receiver is enabled (`INTERVALS_WEBHOOK_SECRET`, see [oauth.md](oauth.md#webhooks)); not counted in the totals above.
+
+| Tool                    | Description                                                                |
+| ----------------------- | -------------------------------------------------------------------------- |
+| `icu_get_recent_events`     | Intervals.icu webhook notifications this server received (type, athlete, timestamps, IDs), newest first; filter by `since` / `event_types`. With OAuth, only the caller's own events |
 
 ## MCP Resources
 

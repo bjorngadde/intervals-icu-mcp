@@ -131,6 +131,8 @@ class RemoteSettings(BaseSettings):
             self.intervals_oauth_client_secret,
             self.oauth_jwt_signing_key,
             self.intervals_webhook_secret,
+            # A Home Assistant webhook URL embeds its webhook ID, which is a secret.
+            self.ha_webhook_url,
         ]
         return [v for v in values if v]
 
