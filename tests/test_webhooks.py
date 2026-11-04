@@ -42,7 +42,7 @@ def _delivery(*events: dict) -> dict:
 
 def _event(event_type: str, **extra) -> dict:
     return {
-        "athlete_id": "784427",
+        "athlete_id": "987654",
         "type": event_type,
         "timestamp": "2026-11-04T06:12:00.000+00:00",
         **extra,
@@ -159,7 +159,7 @@ class TestEventsAndLog:
             "SPORT_SETTINGS_UPDATED",
         ]
         assert all(r["known_type"] for r in rows)
-        assert all(r["athlete_id"] == "i784427" for r in rows)
+        assert all(r["athlete_id"] == "i987654" for r in rows)
         assert rows[0]["timestamp"] == "2026-11-04T06:12:00.000+00:00"
         assert rows[0]["received_at"].endswith("Z")
         assert rows[0]["ids"] == {"activity": ["i555"]}

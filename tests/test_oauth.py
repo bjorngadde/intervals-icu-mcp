@@ -39,7 +39,7 @@ BASE = "https://intervals.gadde.nu"
 CLAUDE_CALLBACK = "https://claude.ai/api/mcp/auth_callback"
 CLIENT_SECRET = "upstream-client-secret-placeholder"
 UPSTREAM_TOKEN = "upstream-access-token-placeholder"
-ATHLETE = "i784427"
+ATHLETE = "i987654"
 SCOPE_STRING = "ACTIVITY:READ,WELLNESS:READ,CALENDAR:WRITE,SETTINGS:READ"
 MCP_HEADERS = {"Accept": "application/json, text/event-stream"}
 
@@ -114,7 +114,7 @@ def intervals():
                     "access_token": UPSTREAM_TOKEN,
                     "token_type": "Bearer",
                     "scope": SCOPE_STRING,
-                    "athlete": {"id": "784427", "name": "Test Athlete"},
+                    "athlete": {"id": "987654", "name": "Test Athlete"},
                 },
             )
         )
@@ -263,7 +263,7 @@ class TestScopes:
         assert set(COACH_TOOLS) <= names
 
     def test_allowlist_normalizes(self):
-        assert parse_allowlist("784427, i1 ,I2") == frozenset({"i784427", "i1", "i2"})
+        assert parse_allowlist("987654, i1 ,I2") == frozenset({"i987654", "i1", "i2"})
         assert parse_allowlist("") == frozenset()
 
 
@@ -387,7 +387,7 @@ class TestProxyFlow:
         async with _app_client(settings) as client:
             flow = await _run_flow(client)
         assert flow.callback.status_code == 403
-        assert "i784427" in flow.callback.text
+        assert "i987654" in flow.callback.text
         assert "ALLOWED_ATHLETE_IDS" in flow.callback.text
         assert "location" not in flow.callback.headers
         disconnect = intervals.routes[1]
@@ -400,7 +400,7 @@ class TestProxyFlow:
         assert flow.callback.status_code == 403
 
     async def test_bare_numeric_allowlist_entry_matches(self, tmp_path, intervals):
-        async with _app_client(_settings(tmp_path, allowed_athlete_ids="784427")) as client:
+        async with _app_client(_settings(tmp_path, allowed_athlete_ids="987654")) as client:
             flow = await _run_flow(client)
         assert flow.callback.status_code == 302
 
@@ -417,7 +417,7 @@ class TestProxyFlow:
     async def test_missing_scope_in_response_falls_back_to_requested(self, tmp_path, intervals):
         intervals.post(INTERVALS_TOKEN_URL).mock(
             return_value=httpx.Response(
-                200, json={"access_token": UPSTREAM_TOKEN, "athlete": {"id": "i784427"}}
+                200, json={"access_token": UPSTREAM_TOKEN, "athlete": {"id": "i987654"}}
             )
         )
         async with _app_client(_settings(tmp_path)) as client:
@@ -498,7 +498,7 @@ class TestPersistence:
         for path in files:
             content = path.read_bytes()
             assert UPSTREAM_TOKEN.encode() not in content
-            assert b"784427" not in content
+            assert b"987654" not in content
 
 
 class TestWithSecretPath:

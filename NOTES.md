@@ -142,7 +142,7 @@ blocking Garmin data in the API. Also check that the wellness rows have HRV and 
   `AccessToken` carries the `intervals_icu_athlete_id` claim), it returns the bearer-mode config.
   Otherwise it returns the API-key config, exactly as before. A token *without* that claim (some
   other auth provider) stays in API-key mode.
-- `normalize_athlete_id()` maps `784427`, `i784427` and `I784427` all to `i784427`.
+- `normalize_athlete_id()` maps `987654`, `i987654` and `I987654` all to `i987654`.
 - `icu_list_athletes` and `icu_get_fitness_summary` show the token owner's real ID instead of
   `"0"` (`config.display_athlete_id`).
 - `intervals_icu_api_key` is now `repr=False`, so it no longer shows up in a config repr.

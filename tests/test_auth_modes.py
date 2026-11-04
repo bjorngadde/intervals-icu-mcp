@@ -25,10 +25,10 @@ class TestNormalizeAthleteId:
     @pytest.mark.parametrize(
         ("raw", "expected"),
         [
-            ("i784427", "i784427"),
-            ("784427", "i784427"),
-            (784427, "i784427"),
-            (" I784427 ", "i784427"),
+            ("i987654", "i987654"),
+            ("987654", "i987654"),
+            (987654, "i987654"),
+            (" I987654 ", "i987654"),
             ("", ""),
             (None, ""),
             ("abc", "abc"),
@@ -45,12 +45,12 @@ class TestConfigModes:
         assert mock_config.display_athlete_id == "i123456"
 
     def test_with_bearer_token_drops_api_key_and_targets_athlete_zero(self, mock_config):
-        bearer = mock_config.with_bearer_token(UPSTREAM_TOKEN, athlete_id="784427")
+        bearer = mock_config.with_bearer_token(UPSTREAM_TOKEN, athlete_id="987654")
         assert bearer.auth_mode == "bearer"
         assert bearer.bearer_token == UPSTREAM_TOKEN
         assert bearer.intervals_icu_api_key == ""
         assert bearer.intervals_icu_athlete_id == "0"
-        assert bearer.display_athlete_id == "i784427"
+        assert bearer.display_athlete_id == "i987654"
         assert validate_credentials(bearer)
         # The source config is untouched (no shared/global state).
         assert mock_config.auth_mode == "api_key"
@@ -131,7 +131,7 @@ class TestClientModes:
         assert "scope" in exc.value.message
 
 
-def _intervals_token(athlete_id: str = "i784427") -> AccessToken:
+def _intervals_token(athlete_id: str = "i987654") -> AccessToken:
     return AccessToken(
         token=UPSTREAM_TOKEN,
         client_id="dcr-client",
@@ -161,7 +161,7 @@ class TestResolveRequestConfig:
         assert config.bearer_token == UPSTREAM_TOKEN
         assert config.intervals_icu_api_key == ""
         assert config.intervals_icu_athlete_id == "0"
-        assert config.display_athlete_id == "i784427"
+        assert config.display_athlete_id == "i987654"
 
     def test_foreign_token_without_claim_stays_api_key(self):
         token = AccessToken(token="other", client_id="x", scopes=[], claims={})

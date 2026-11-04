@@ -20,7 +20,7 @@ TOKEN_OWNER_ATHLETE_ID = "0"
 def normalize_athlete_id(value: object) -> str:
     """Normalize an Intervals.icu athlete ID to its canonical ``i<digits>`` form.
 
-    The API shows athlete IDs with an ``i`` prefix (``i784427``), but some responses
+    The API shows athlete IDs with an ``i`` prefix (``i987654``), but some responses
     (e.g. the OAuth token response) carry the bare number. Both sides of any comparison
     should go through this function. Non-numeric IDs are returned stripped, unchanged.
     """
