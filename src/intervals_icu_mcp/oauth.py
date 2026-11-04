@@ -56,6 +56,7 @@ from starlette.requests import Request
 from starlette.responses import HTMLResponse, RedirectResponse, Response
 
 from .auth import normalize_athlete_id
+from .client import register_bearer_unauthorized_hook
 from .middleware import INTERVALS_ATHLETE_CLAIM
 from .remote import RemoteConfigError, RemoteSettings
 
@@ -391,7 +392,8 @@ class IntervalsTokenVerifier(TokenVerifier):
         )
 
     async def forget(self, token: str) -> None:
-        await self._grants.delete(key=_token_key(token))
+        if await self._grants.delete(key=_token_key(token)):
+            logger.info("Forgot a revoked Intervals.icu token; the client must log in again")
 
     async def verify_token(self, token: str) -> AccessToken | None:
         grant = await self._grants.get(key=_token_key(token))
@@ -588,6 +590,9 @@ class IntervalsOAuthProvider(OAuthProxy):
             allowed_athlete_ids=parse_allowlist(settings.allowed_athlete_ids),
             required_scopes=self.scopes,
         )
+        # An upstream 401 means the athlete revoked or disconnected the app: drop the
+        # mapping so the MCP token stops verifying and the client re-authenticates.
+        register_bearer_unauthorized_hook(self.verifier.forget)
         base = public_base_url(settings)
         super().__init__(
             upstream_authorization_endpoint=INTERVALS_AUTHORIZE_URL,

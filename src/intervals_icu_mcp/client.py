@@ -1,5 +1,8 @@
 """Async HTTP client for Intervals.icu API."""
 
+import logging
+import weakref
+from collections.abc import Awaitable, Callable
 from typing import Any, cast
 
 import httpx
@@ -24,6 +27,34 @@ from .models import (
     Wellness,
     Workout,
 )
+
+logger = logging.getLogger(__name__)
+
+#: Called with the bearer token when Intervals.icu answers 401 to it (revoked or
+#: disconnected). The OAuth provider registers its verifier here so the server stops
+#: accepting the MCP token that maps to it, and the MCP client is sent back through
+#: login on its next request. Held weakly: a provider that is gone is skipped.
+BearerUnauthorizedHook = Callable[[str], Awaitable[None]]
+_bearer_unauthorized_hooks: list[weakref.WeakMethod[BearerUnauthorizedHook]] = []
+
+
+def register_bearer_unauthorized_hook(hook: BearerUnauthorizedHook) -> None:
+    """Register a bound async method to run when a bearer token is rejected (401)."""
+    _bearer_unauthorized_hooks.append(weakref.WeakMethod(hook))
+
+
+async def _notify_bearer_unauthorized(token: str) -> None:
+    alive: list[weakref.WeakMethod[BearerUnauthorizedHook]] = []
+    for ref in _bearer_unauthorized_hooks:
+        hook = ref()
+        if hook is None:
+            continue
+        alive.append(ref)
+        try:
+            await hook(token)
+        except Exception:  # a broken hook must not mask the 401 itself
+            logger.warning("Bearer-unauthorized hook failed", exc_info=True)
+    _bearer_unauthorized_hooks[:] = alive
 
 
 class ICUAPIError(Exception):
@@ -114,6 +145,7 @@ class ICUClient:
             # Handle specific error codes
             if response.status_code == 401:
                 if self.config.bearer_token:
+                    await _notify_bearer_unauthorized(self.config.bearer_token)
                     raise ICUAPIError(
                         "Unauthorized. The Intervals.icu OAuth token was rejected "
                         "(revoked or expired). Reconnect the MCP connector.",

@@ -1,6 +1,7 @@
 """OAuth mode: MCP-client OAuth 2.1 proxied to a mocked Intervals.icu."""
 
 import base64
+import gc
 import hashlib
 import json
 import logging
@@ -520,3 +521,84 @@ class TestWithSecretPath:
             assert (await client.get("/random")).status_code == 404
             flow = await _run_flow(client)
             assert (await _call_whoami(client, flow.access_token))["mode"] == "bearer"
+
+
+class TestRevokedUpstreamToken:
+    async def test_upstream_401_forces_reauthentication(self, tmp_path, intervals):
+        async with _app_client(_settings(tmp_path)) as client:
+            flow = await _run_flow(client)
+            assert flow.access_token
+            assert (await _call_whoami(client, flow.access_token))["mode"] == "bearer"
+
+            # The athlete disconnects the app in Intervals.icu: the API now says 401.
+            intervals.get("https://intervals.icu/api/v1/athlete/0").mock(
+                return_value=httpx.Response(401)
+            )
+            headers = {**MCP_HEADERS, "Authorization": f"Bearer {flow.access_token}"}
+            init = {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {
+                    "protocolVersion": "2025-06-18",
+                    "capabilities": {},
+                    "clientInfo": {"name": "pytest", "version": "0"},
+                },
+            }
+            resp = await client.post("/mcp", json=init, headers=headers)
+            headers["mcp-session-id"] = resp.headers["mcp-session-id"]
+            await client.post(
+                "/mcp",
+                json={"jsonrpc": "2.0", "method": "notifications/initialized"},
+                headers=headers,
+            )
+            call = await client.post(
+                "/mcp",
+                json={
+                    "jsonrpc": "2.0",
+                    "id": 2,
+                    "method": "tools/call",
+                    "params": {"name": "whoami", "arguments": {}},
+                },
+                headers=headers,
+            )
+            assert "reconnect" in call.text.lower()
+
+            # Next MCP request with the same token: 401 at the HTTP layer, so Claude
+            # starts the OAuth flow again instead of retrying a dead token.
+            again = await client.post("/mcp", json=init, headers=headers)
+            assert again.status_code == 401
+            assert "invalid_token" in again.headers["www-authenticate"]
+
+            # A fresh login works again once the upstream accepts the new token.
+            intervals.get("https://intervals.icu/api/v1/athlete/0").mock(
+                return_value=httpx.Response(200, json={"id": ATHLETE, "name": "Test Athlete"})
+            )
+            relogin = await _run_flow(client, client_id=flow.client_id)
+            assert relogin.access_token
+            assert (await _call_whoami(client, relogin.access_token))["mode"] == "bearer"
+
+
+class TestUnauthorizedHooks:
+    async def test_hooks_are_weak_and_failures_swallowed(self):
+        from intervals_icu_mcp import client as client_module
+
+        calls: list[str] = []
+
+        class Good:
+            async def hook(self, token: str) -> None:
+                calls.append(token)
+
+        class Bad:
+            async def hook(self, token: str) -> None:
+                raise RuntimeError("boom")
+
+        good, bad, gone = Good(), Bad(), Good()
+        before = len(client_module._bearer_unauthorized_hooks)
+        for obj in (good, bad, gone):
+            client_module.register_bearer_unauthorized_hook(obj.hook)
+        del obj, gone
+        gc.collect()
+        await client_module._notify_bearer_unauthorized("tok")
+        assert calls == ["tok"]
+        assert len(client_module._bearer_unauthorized_hooks) <= before + 2
