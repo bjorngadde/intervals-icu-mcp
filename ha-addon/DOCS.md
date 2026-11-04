@@ -110,7 +110,8 @@ Intervals.icu sends webhooks only to OAuth apps, for the athletes who authorised
 
 The snippet proxies to the add-on's published port and passes on the `X-Forwarded-*` headers.
 It turns buffering off and allows 1-hour reads for streaming, and it turns off the access log so
-that secret paths and tokens never land on disk. **Do not forward port 8099 on your router.** Only
+that secret paths and tokens never land on disk. It also rate-limits each client IP to 10 requests
+per second (burst 50, then `429`), which caps any guessing of secret paths or webhook secrets. **Do not forward port 8099 on your router.** Only
 443 (NGINX) should be reachable from the internet.
 
 The add-on trusts `X-Forwarded-*` only from the Supervisor network (`172.30.32.0/23`). Public URLs

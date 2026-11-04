@@ -191,6 +191,9 @@ class TestAddonFiles:
             "X-Forwarded-Proto",
             "X-Forwarded-Host",
             "proxy_read_timeout      1h;",
+            "limit_req_zone $binary_remote_addr zone=intervals_mcp:10m rate=10r/s;",
+            "limit_req        zone=intervals_mcp burst=50 nodelay;",
+            "limit_req_status 429;",
         ):
             assert directive in conf, directive
 

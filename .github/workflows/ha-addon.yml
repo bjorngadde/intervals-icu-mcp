@@ -134,3 +134,33 @@ jobs:
       - name: Add-on log on failure
         if: failure()
         run: docker logs addon 2>&1 | sed -E 's#/[A-Za-z0-9_-]{43}/#/<secret>/#g' || true
+
+  nginx-snippet:
+    name: NGINX snippet syntax
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: nginx -t with the snippet in an http block
+        run: |
+          set -euo pipefail
+          work=$(mktemp -d)
+          mkdir -p "$work/ssl" "$work/conf"
+          # Throwaway self-signed cert in the paths the SSL proxy add-on uses.
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj "/CN=intervals.gadde.nu" \
+            -keyout "$work/ssl/privkey.pem" -out "$work/ssl/fullchain.pem" 2>/dev/null
+          cp ha-addon/nginx/intervals.conf "$work/conf/intervals.conf"
+          cat > "$work/conf/nginx.conf" <<'CONF'
+          events {}
+          http {
+              include /etc/nginx/custom/intervals.conf;
+          }
+          CONF
+          # The NGINX add-on resolves this name to the host; nginx -t needs it to resolve.
+          docker run --rm \
+            --add-host homeassistant.local.hass.io:127.0.0.1 \
+            -v "$work/ssl:/ssl:ro" \
+            -v "$work/conf:/etc/nginx/custom:ro" \
+            nginx:1.27-alpine nginx -t -c /etc/nginx/custom/nginx.conf
