@@ -7,12 +7,36 @@ from fastmcp import Context
 
 from ..auth import ICUConfig
 from ..client import ICUAPIError, ICUClient
+from ..models import Event
 from ..response_builder import ResponseBuilder
+
+PUSH_ERRORS_HINT = (
+    "Intervals.icu could not push some planned workouts to a connected platform "
+    "(e.g. Garmin Connect, Zwift): see push_errors on each event. The workout is on "
+    "the Intervals.icu calendar but may be missing on the device/app."
+)
+
+
+def format_push_errors(event: Event) -> list[dict[str, Any]] | None:
+    """Compact push failures ({service, message, date}) or None when there are none."""
+    if not event.push_errors:
+        return None
+    errors: list[dict[str, Any]] = []
+    for raw in event.push_errors:
+        entry = {k: raw.get(k) for k in ("service", "message", "date") if raw.get(k)}
+        if entry:
+            errors.append(entry)
+    return errors or None
 
 
 async def get_calendar_events(
     days_ahead: Annotated[int, "Number of days to look ahead"] = 7,
     days_back: Annotated[int, "Number of days to look back"] = 0,
+    external_id_prefix: Annotated[
+        str | None,
+        "Only events whose external_id starts with this (e.g. 'ai-coach-' to find the "
+        "events you created earlier)",
+    ] = None,
     athlete_id: Annotated[str | None, "Athlete ID (for coaches managing multiple athletes)"] = None,
     ctx: Context | None = None,
 ) -> str:
@@ -39,6 +63,8 @@ async def get_calendar_events(
                 oldest=oldest,
                 newest=newest,
             )
+            if external_id_prefix:
+                events = [e for e in events if (e.external_id or "").startswith(external_id_prefix)]
 
             if not events:
                 return ResponseBuilder.build_response(
@@ -87,6 +113,13 @@ async def get_calendar_events(
                     event_item["type"] = event.type
                 if event.tags:
                     event_item["tags"] = event.tags
+                if event.external_id:
+                    event_item["external_id"] = event.external_id
+                if event.indoor:
+                    event_item["indoor"] = True
+                push_errors = format_push_errors(event)
+                if push_errors:
+                    event_item["push_errors"] = push_errors
                 # Coach access flags: only when set, so lists don't carry two falses per event
                 if event.hide_from_athlete:
                     event_item["hide_from_athlete"] = True
@@ -140,6 +173,9 @@ async def get_calendar_events(
                     "blocks": block_count,
                 },
             }
+            failed_pushes = sum(1 for e in events if format_push_errors(e))
+            if failed_pushes:
+                summary["events_with_push_errors"] = failed_pushes
 
             return ResponseBuilder.build_response(
                 data={
@@ -147,6 +183,7 @@ async def get_calendar_events(
                     "date_range": {"oldest": oldest, "newest": newest},
                     "summary": summary,
                 },
+                analysis={"push_errors": PUSH_ERRORS_HINT} if failed_pushes else None,
                 query_type="calendar_events",
             )
 
@@ -226,6 +263,13 @@ async def get_upcoming_workouts(
                     workout_item["type"] = workout.type
                 if workout.tags:
                     workout_item["tags"] = workout.tags
+                if workout.external_id:
+                    workout_item["external_id"] = workout.external_id
+                if workout.indoor:
+                    workout_item["indoor"] = True
+                workout_push_errors = format_push_errors(workout)
+                if workout_push_errors:
+                    workout_item["push_errors"] = workout_push_errors
                 if workout.hide_from_athlete:
                     workout_item["hide_from_athlete"] = True
                 if workout.athlete_cannot_edit:
@@ -351,6 +395,11 @@ async def get_event(
                 event_data["color"] = event.color
             if event.external_id:
                 event_data["external_id"] = event.external_id
+            if event.indoor is not None:
+                event_data["indoor"] = event.indoor
+            push_errors = format_push_errors(event)
+            if push_errors:
+                event_data["push_errors"] = push_errors
 
             return ResponseBuilder.build_response(
                 data=event_data,

@@ -1,0 +1,166 @@
+name: Home Assistant add-on
+
+# Builds ha-addon/ the way Home Assistant does (from build.yaml's base image, with
+# the add-on folder as build context) for every architecture it declares, then
+# smoke-tests the image: refuses to start without an auth mode, serves /healthz,
+# 404s /mcp, answers MCP initialize on the secret path, and never logs the secret.
+
+on:
+  pull_request:
+    paths:
+      - "ha-addon/**"
+      - "src/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/ha-addon.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "ha-addon/**"
+      - "src/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/ha-addon.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build and smoke-test (${{ matrix.arch }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            platform: linux/amd64
+          - arch: aarch64
+            platform: linux/arm64
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Resolve base image and source commit
+        id: src
+        env:
+          ARCH: ${{ matrix.arch }}
+          # The add-on installs the server from git, so build it from the exact
+          # commit under test (a PR's head, or the pushed commit).
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.clone_url || format('{0}/{1}', github.server_url, github.repository) }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          base=$(yq -r ".build_from.${ARCH}" ha-addon/build.yaml)
+          test -n "$base" && test "$base" != "null"
+          echo "base=$base" >> "$GITHUB_OUTPUT"
+          echo "repo=$HEAD_REPO" >> "$GITHUB_OUTPUT"
+          echo "sha=$HEAD_SHA" >> "$GITHUB_OUTPUT"
+          echo "Building $ARCH from $base at $HEAD_SHA"
+
+      - name: Set up QEMU
+        if: matrix.arch != 'amd64'
+        uses: docker/setup-qemu-action@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build add-on image
+        run: |
+          set -euo pipefail
+          docker buildx build ha-addon \
+            --platform "${{ matrix.platform }}" \
+            --load \
+            --tag addon-under-test \
+            --build-arg "BUILD_FROM=${{ steps.src.outputs.base }}" \
+            --build-arg "BUILD_VERSION=0.0.0+ci" \
+            --build-arg "INTERVALS_MCP_REPO=${{ steps.src.outputs.repo }}" \
+            --build-arg "INTERVALS_MCP_REF=${{ steps.src.outputs.sha }}"
+
+      - name: Refuses to start without an auth mode
+        run: |
+          set -euo pipefail
+          data=$(mktemp -d)
+          echo '{"log_level": "info"}' > "$data/options.json"
+          if timeout 120 docker run --rm --platform "${{ matrix.platform }}" \
+              -v "$data:/data" addon-under-test > "$data/out.log" 2>&1; then
+            cat "$data/out.log"; echo "::error::add-on started without an auth mode"; exit 1
+          fi
+          cat "$data/out.log"
+          grep -q "No authentication mode configured" "$data/out.log"
+
+      - name: Smoke test (secret-path mode)
+        run: |
+          set -euo pipefail
+          data=$(mktemp -d)
+          secret=$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')
+          python3 - "$secret" > "$data/options.json" <<'EOF'
+          import json, sys
+          print(json.dumps({
+              "api_key": "ci-placeholder-api-key",
+              "athlete_id": "i1",
+              "path_secret": sys.argv[1],
+              "log_level": "info",
+          }))
+          EOF
+          docker run -d --name addon --platform "${{ matrix.platform }}" \
+            -v "$data:/data" -p 8099:8099 addon-under-test
+          for _ in $(seq 1 90); do
+            curl -fsS http://127.0.0.1:8099/healthz >/dev/null 2>&1 && break
+            sleep 2
+          done
+          curl -fsS http://127.0.0.1:8099/healthz | grep -q '"ok"'
+
+          code=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:8099/mcp)
+          test "$code" = "404" || { echo "::error::/mcp returned $code, expected 404"; exit 1; }
+
+          init='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"ci","version":"0"}}}'
+          curl -fsS -X POST "http://127.0.0.1:8099/${secret}/mcp" \
+            -H 'Accept: application/json, text/event-stream' \
+            -H 'Content-Type: application/json' \
+            -d "$init" | grep -q '"serverInfo"'
+
+          docker logs addon > "$data/addon.log" 2>&1
+          if grep -qF "$secret" "$data/addon.log"; then
+            echo "::error::the path secret appeared in the add-on log"; exit 1
+          fi
+          grep -q "modes=secret-path" "$data/addon.log"
+          grep -q "/__secret__/mcp" "$data/addon.log"
+
+      - name: Add-on log on failure
+        if: failure()
+        run: docker logs addon 2>&1 | sed -E 's#/[A-Za-z0-9_-]{43}/#/<secret>/#g' || true
+
+  nginx-snippet:
+    name: NGINX snippet syntax
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: nginx -t with the snippet in an http block
+        run: |
+          set -euo pipefail
+          work=$(mktemp -d)
+          mkdir -p "$work/ssl" "$work/conf"
+          # Throwaway self-signed cert in the paths the SSL proxy add-on uses.
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj "/CN=intervals.gadde.nu" \
+            -keyout "$work/ssl/privkey.pem" -out "$work/ssl/fullchain.pem" 2>/dev/null
+          cp ha-addon/nginx/intervals.conf "$work/conf/intervals.conf"
+          cat > "$work/conf/nginx.conf" <<'CONF'
+          events {}
+          http {
+              include /etc/nginx/custom/intervals.conf;
+          }
+          CONF
+          # The NGINX add-on resolves this name to the host; nginx -t needs it to resolve.
+          docker run --rm \
+            --add-host homeassistant.local.hass.io:127.0.0.1 \
+            -v "$work/ssl:/ssl:ro" \
+            -v "$work/conf:/etc/nginx/custom:ro" \
+            nginx:1.27-alpine nginx -t -c /etc/nginx/custom/nginx.conf

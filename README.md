@@ -16,7 +16,7 @@ A Model Context Protocol (MCP) server for Intervals.icu integration. Access your
 
 ## Overview
 
-73 tools spanning activities, activity analysis, activity messages, athlete profile, wellness, events/calendar, performance curves, workout library, gear, sport settings, and custom items — plus 4 MCP Resources (athlete profile, workout syntax, event categories, custom item schemas) and 9 MCP Prompts (training analysis, recovery check, weekly planning, and more). See [Available Tools](#available-tools) for the per-category breakdown.
+73 tools spanning activities, activity analysis, activity messages, athlete profile, wellness, events/calendar, performance curves, workout library, gear, sport settings, and custom items — plus 4 MCP Resources (athlete profile, workout syntax, event categories, custom item schemas) and 10 MCP Prompts (training analysis, recovery check, weekly planning, a daily coach routine, and more). See [Available Tools](#available-tools) for the per-category breakdown.
 
 ## Quick Start
 
@@ -242,12 +242,26 @@ The server runs over **stdio** by default — the right transport for local clie
 
 See [docs/remote-deployment.md](https://github.com/hhopke/intervals-icu-mcp/blob/main/docs/remote-deployment.md) for transport flags and the full security model.
 
+### OAuth: add as a Claude custom connector
+
+Built-in auth for remote use, opt-in via env vars (HTTP transport only):
+
+- **OAuth via Intervals.icu** — set `INTERVALS_OAUTH_CLIENT_ID`, `INTERVALS_OAUTH_CLIENT_SECRET`, `PUBLIC_BASE_URL` (e.g. `https://mcp.example.com`), `ALLOWED_ATHLETE_IDS` (e.g. `i123456`; empty rejects everyone) and `DATA_DIR`. Register `<PUBLIC_BASE_URL>/auth/callback` as the redirect URI of your Intervals.icu OAuth app.
+- **Secret URL** (no OAuth app needed) — set `MCP_PATH_SECRET` to ≥32 random URL-safe characters; MCP is then served only at `/<secret>/mcp`.
+
+```bash
+intervals-icu-mcp --transport http --host 0.0.0.0 --port 8000
+```
+
+In Claude: **Settings → Connectors → Add custom connector**, URL `<PUBLIC_BASE_URL>/mcp` (OAuth — Claude registers itself and opens the Intervals.icu login) or `<PUBLIC_BASE_URL>/<secret>/mcp` (secret URL). Full setup, scopes per tool, and webhooks: [docs/oauth.md](docs/oauth.md).
+
 ## Documentation
 
 - [Example prompts](https://github.com/hhopke/intervals-icu-mcp/blob/main/docs/examples.md) — full catalogue of natural-language prompts by category
 - [Tool reference](https://github.com/hhopke/intervals-icu-mcp/blob/main/docs/tools.md) — complete tool, resource, and prompt inventory
 - [Architecture overview](https://github.com/hhopke/intervals-icu-mcp/blob/main/docs/architecture.md) — how the server, middleware, client, and tools fit together
 - [Remote deployment (HTTP/SSE)](https://github.com/hhopke/intervals-icu-mcp/blob/main/docs/remote-deployment.md) — transports, flags, and the security model for hosted/remote setups
+- [OAuth, secret URL & webhooks](docs/oauth.md) — Claude custom connector setup, scopes per tool, webhook receiver
 - [Testing guide](https://github.com/hhopke/intervals-icu-mcp/blob/main/docs/testing.md) — conventions for pytest + respx, fixtures, and running the suite
 - [Changelog](CHANGELOG.md) — release history
 - [Adding a new tool](https://github.com/hhopke/intervals-icu-mcp/blob/main/.claude/skills/add-tool/SKILL.md) — step-by-step workflow for contributors

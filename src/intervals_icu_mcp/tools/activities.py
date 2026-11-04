@@ -8,7 +8,7 @@ from fastmcp import Context
 from ..auth import ICUConfig
 from ..client import ICUAPIError, ICUClient
 from ..response_builder import ResponseBuilder
-from ._strava import strava_limitation_note
+from ._strava import data_availability_note, restricted_source, summarize_restricted
 
 
 def _summarize_activity(activity: Any) -> dict[str, Any]:
@@ -49,6 +49,10 @@ def _summarize_activity(activity: Any) -> dict[str, Any]:
     if activity.icu_intensity:
         item["intensity_factor"] = activity.icu_intensity
 
+    restricted = restricted_source(activity)
+    if restricted:
+        item["data_restricted"] = restricted
+
     return item
 
 
@@ -87,8 +91,10 @@ async def get_recent_activities(
 
             activities_data = [_summarize_activity(a) for a in activities]
 
+            restricted_warning = summarize_restricted(list(activities))
             return ResponseBuilder.build_response(
                 data={"activities": activities_data, "count": len(activities_data)},
+                analysis={"data_availability": restricted_warning} if restricted_warning else None,
                 query_type="recent_activities",
             )
 
@@ -139,8 +145,10 @@ async def get_activities_by_date(
 
             activities_data = [_summarize_activity(a) for a in activities]
 
+            restricted_warning = summarize_restricted(list(activities))
             return ResponseBuilder.build_response(
                 data={"activities": activities_data, "count": len(activities_data)},
+                analysis={"data_availability": restricted_warning} if restricted_warning else None,
                 query_type="activities_by_date",
             )
 
@@ -277,9 +285,9 @@ async def get_activity_details(
                 activity_data["other"] = other_info
 
             analysis: dict[str, Any] = {}
-            strava_note = strava_limitation_note(activity)
-            if strava_note:
-                analysis["data_availability"] = strava_note
+            availability_note = data_availability_note(activity)
+            if availability_note:
+                analysis["data_availability"] = availability_note
 
             metadata: dict[str, Any] = {}
             if activity.feel is not None or activity.perceived_exertion is not None:

@@ -14,6 +14,21 @@ import dotenv
 # might do `from dotenv import load_dotenv` and capture the real binding.
 for _key in [k for k in os.environ if k.startswith("INTERVALS_ICU_")]:
     del os.environ[_key]
+# Remote-deployment settings (secret path, OAuth, webhooks) must not leak in either.
+for _key in [
+    "MCP_PATH_SECRET",
+    "INTERVALS_OAUTH_CLIENT_ID",
+    "INTERVALS_OAUTH_CLIENT_SECRET",
+    "PUBLIC_BASE_URL",
+    "ALLOWED_ATHLETE_IDS",
+    "OAUTH_SCOPES",
+    "OAUTH_JWT_SIGNING_KEY",
+    "OAUTH_ALLOWED_CLIENT_REDIRECT_URIS",
+    "DATA_DIR",
+    "INTERVALS_WEBHOOK_SECRET",
+    "HA_WEBHOOK_URL",
+]:
+    os.environ.pop(_key, None)
 
 
 def _noop_load_dotenv(*_args, **_kwargs):
@@ -28,6 +43,10 @@ import respx  # noqa: E402
 from intervals_icu_mcp.auth import ICUConfig  # noqa: E402
 
 ICUConfig.model_config["env_file"] = None
+
+from intervals_icu_mcp.remote import RemoteSettings  # noqa: E402
+
+RemoteSettings.model_config["env_file"] = None
 
 
 @pytest.fixture

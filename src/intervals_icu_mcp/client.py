@@ -1,5 +1,8 @@
 """Async HTTP client for Intervals.icu API."""
 
+import logging
+import weakref
+from collections.abc import Awaitable, Callable
 from typing import Any, cast
 
 import httpx
@@ -24,6 +27,34 @@ from .models import (
     Wellness,
     Workout,
 )
+
+logger = logging.getLogger(__name__)
+
+#: Called with the bearer token when Intervals.icu answers 401 to it (revoked or
+#: disconnected). The OAuth provider registers its verifier here so the server stops
+#: accepting the MCP token that maps to it, and the MCP client is sent back through
+#: login on its next request. Held weakly: a provider that is gone is skipped.
+BearerUnauthorizedHook = Callable[[str], Awaitable[None]]
+_bearer_unauthorized_hooks: list[weakref.WeakMethod[BearerUnauthorizedHook]] = []
+
+
+def register_bearer_unauthorized_hook(hook: BearerUnauthorizedHook) -> None:
+    """Register a bound async method to run when a bearer token is rejected (401)."""
+    _bearer_unauthorized_hooks.append(weakref.WeakMethod(hook))
+
+
+async def _notify_bearer_unauthorized(token: str) -> None:
+    alive: list[weakref.WeakMethod[BearerUnauthorizedHook]] = []
+    for ref in _bearer_unauthorized_hooks:
+        hook = ref()
+        if hook is None:
+            continue
+        alive.append(ref)
+        try:
+            await hook(token)
+        except Exception:  # a broken hook must not mask the 401 itself
+            logger.warning("Bearer-unauthorized hook failed", exc_info=True)
+    _bearer_unauthorized_hooks[:] = alive
 
 
 class ICUAPIError(Exception):
@@ -57,14 +88,23 @@ class ICUClient:
 
     async def __aenter__(self) -> "ICUClient":
         """Async context manager entry."""
-        # Use Basic Auth with username "API_KEY" and password as the actual API key
-        auth = httpx.BasicAuth(username="API_KEY", password=self.config.intervals_icu_api_key)
-
-        self._client = httpx.AsyncClient(
-            base_url=self.BASE_URL,
-            timeout=30.0,
-            auth=auth,
-        )
+        bearer_token = self.config.bearer_token
+        if bearer_token:
+            # OAuth mode: a per-request access token. Athlete "0" in paths resolves to
+            # the token owner (see ICUConfig.with_bearer_token).
+            self._client = httpx.AsyncClient(
+                base_url=self.BASE_URL,
+                timeout=30.0,
+                headers={"Authorization": f"Bearer {bearer_token}"},
+            )
+        else:
+            # Use Basic Auth with username "API_KEY" and password as the actual API key
+            auth = httpx.BasicAuth(username="API_KEY", password=self.config.intervals_icu_api_key)
+            self._client = httpx.AsyncClient(
+                base_url=self.BASE_URL,
+                timeout=30.0,
+                auth=auth,
+            )
         return self
 
     async def __aexit__(
@@ -104,7 +144,21 @@ class ICUClient:
 
             # Handle specific error codes
             if response.status_code == 401:
+                if self.config.bearer_token:
+                    await _notify_bearer_unauthorized(self.config.bearer_token)
+                    raise ICUAPIError(
+                        "Unauthorized. The Intervals.icu OAuth token was rejected "
+                        "(revoked or expired). Reconnect the MCP connector.",
+                        401,
+                    )
                 raise ICUAPIError("Unauthorized. Check your API key and athlete ID.", 401)
+
+            if response.status_code == 403 and self.config.bearer_token:
+                raise ICUAPIError(
+                    "Forbidden. The Intervals.icu OAuth token lacks the scope this call "
+                    "needs, or the athlete has not granted access. See OAUTH_SCOPES.",
+                    403,
+                )
 
             if response.status_code == 404:
                 raise ICUAPIError("Resource not found.", 404)
@@ -1379,19 +1433,23 @@ class ICUClient:
         self,
         events_data: list[dict[str, Any]],
         athlete_id: str | None = None,
+        upsert: bool = False,
     ) -> list[Event]:
         """Create multiple calendar events in a single request.
 
         Args:
             events_data: List of event data dictionaries
             athlete_id: Athlete ID (uses config default if not provided)
+            upsert: Update events with a matching external_id created by the same
+                OAuth application instead of creating new ones (OAuth tokens only)
 
         Returns:
-            List of created Event objects
+            List of created (or updated) Event objects
         """
         athlete_id = athlete_id or self.config.intervals_icu_athlete_id
+        params = {"upsert": "true"} if upsert else None
         response = await self._request(
-            "POST", f"/athlete/{athlete_id}/events/bulk", json=events_data
+            "POST", f"/athlete/{athlete_id}/events/bulk", json=events_data, params=params
         )
         adapter = TypeAdapter(list[Event])
         return adapter.validate_python(response.json())

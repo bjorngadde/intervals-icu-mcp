@@ -1,6 +1,6 @@
 # Tool, Resource, and Prompt Reference
 
-Complete inventory of everything the Intervals.icu MCP server exposes: up to 73 tools across 11 categories, 4 MCP Resources, and 9 MCP Prompts.
+Complete inventory of everything the Intervals.icu MCP server exposes: up to 73 tools across 11 categories, 4 MCP Resources, and 10 MCP Prompts.
 
 ## Delete Safety Mode
 
@@ -185,15 +185,15 @@ The threaded notes/comments shown under an activity — the user's own training 
 
 | Tool                    | Description                                                |
 | ----------------------- | ---------------------------------------------------------- |
-| `icu_get_calendar_events`   | Get planned events and workouts from calendar              |
+| `icu_get_calendar_events`   | Get planned events and workouts from calendar; filter by `external_id_prefix`; shows `push_errors` when a workout failed to sync to Garmin/Zwift |
 | `icu_get_upcoming_workouts` | Upcoming planned WORKOUT **calendar events** only — not workout-library templates (see [Workout Library](#workout-library-8-tools)); returns event IDs |
 | `icu_get_annual_training_plan` | Read ATP periodization — weekly TSS targets, phases, ATP week notes (`week_note`; default: 365 days ahead; narrow with `days_ahead`/`days_back` for a specific month) |
 | `icu_get_event`             | Get details for a specific event                           |
 | `icu_get_seasons`           | List the athlete's seasons (name, start, end) with the curve ID (`s0` = current) for season-based curve queries |
-| `icu_create_event`          | Create new calendar events (workouts, races, notes, goals); optional `hide_from_athlete` / `athlete_cannot_edit` |
-| `icu_update_event`          | Modify existing calendar events (only the fields passed), including `hide_from_athlete` / `athlete_cannot_edit` |
+| `icu_create_event`          | Create new calendar events (workouts, races, notes, goals); optional `hide_from_athlete` / `athlete_cannot_edit`, `indoor`, `external_id` |
+| `icu_update_event`          | Modify existing calendar events (only the fields passed), including `hide_from_athlete` / `athlete_cannot_edit`, `indoor`, `external_id` |
 | `icu_delete_event`          | Remove an event from the calendar *(safe mode: future events only; envelope returns `deleted` / `skipped`)* |
-| `icu_bulk_create_events`    | Create multiple events in a single operation               |
+| `icu_bulk_create_events`    | Create multiple events in a single operation; `upsert_by_external_id` updates events this OAuth connector created earlier instead of duplicating them |
 | `icu_bulk_update_event_access` | Hide/reveal or lock/unlock many planned WORKOUT events by ID list or date range — the web UI's "Hide from athlete" / "Athlete cannot edit" checkboxes. Other categories are reported as `skipped`; results split into `updated` / `unchanged` / `skipped` / `failed` |
 | `icu_bulk_delete_events`    | Delete multiple events in a single operation *(safe mode partitions into `deleted` / `skipped`)* |
 | `icu_duplicate_events`      | Duplicate one or more events with configurable copies and spacing |
@@ -252,6 +252,14 @@ The user's personal additions to their account: custom charts on dashboards, cus
 | `icu_update_custom_item`    | Modify an existing custom addition (rename, reconfigure, change visibility)|
 | `icu_delete_custom_item`    | Permanently remove a custom addition *(only registered when `INTERVALS_ICU_DELETE_MODE=full`; data-bearing field types may cascade)* |
 
+### Webhook Events (1 tool, opt-in)
+
+Registered only when the webhook receiver is enabled (`INTERVALS_WEBHOOK_SECRET`, see [oauth.md](oauth.md#webhooks)); not counted in the totals above.
+
+| Tool                    | Description                                                                |
+| ----------------------- | -------------------------------------------------------------------------- |
+| `icu_get_recent_events`     | Intervals.icu webhook notifications this server received (type, athlete, timestamps, IDs), newest first; filter by `since` / `event_types`. With OAuth, only the caller's own events |
+
 ## MCP Resources
 
 Resources provide ongoing context to the LLM without requiring explicit tool calls.
@@ -275,6 +283,7 @@ Prompt templates for common queries, accessible via prompt suggestions in Claude
 | `icu_recovery_check`          | Recovery assessment with wellness trends and training load               |
 | `icu_training_plan_review`    | Weekly training plan evaluation with workout library                     |
 | `icu_plan_training_week`      | AI-assisted weekly training plan creation based on current fitness       |
+| `daily_coach_check`           | Daily coach routine: readiness, recent training, plan the next days with tagged/`external_id` workouts, verify parsing and device sync |
 | `generate_workout`            | Generate a structured workout with sport, type, and duration parameters  |
 | `verify_setup`                | Exercise core tools against your account to verify the server works      |
 | `verify_multi_athlete`        | Verify coach/multi-athlete access by querying another athlete's data     |

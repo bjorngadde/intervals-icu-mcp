@@ -140,3 +140,25 @@ class TestPromptToolReferences:
 
         source = inspect.getsource(server_mod)
         assert not re.findall(r"icu_icu_\w+", source)
+
+
+class TestDailyCoachPrompt:
+    async def test_renders_with_tag_and_horizon(self):
+        from intervals_icu_mcp.server import daily_coach_check
+
+        text = await daily_coach_check(days_ahead="3", coach_tag="coach")
+        assert 'external_id_prefix="coach-"' in text
+        assert '"coach-YYYY-MM-DD-<short-slug>"' in text
+        assert "upsert_by_external_id=true" in text
+        assert "push_errors" in text
+        assert "next 3 day(s)" in text
+
+    async def test_registered_as_prompt(self):
+        from fastmcp import Client
+
+        from intervals_icu_mcp.server import mcp
+
+        async with Client(mcp) as client:
+            names = {p.name for p in await client.list_prompts()}
+        assert "daily_coach_check" in names
+        assert len(names) == 10

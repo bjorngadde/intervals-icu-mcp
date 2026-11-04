@@ -2,7 +2,7 @@
 
 import argparse
 import sys
-from typing import Any
+from typing import Any, NoReturn
 
 from dotenv import load_dotenv
 from fastmcp import FastMCP
@@ -19,6 +19,12 @@ mcp = FastMCP("intervals_icu_mcp")
 @mcp.custom_route("/health", methods=["GET"], include_in_schema=False)
 async def health(request: Request) -> JSONResponse:
     """Return static HTTP liveness without accessing MCP or upstream APIs."""
+    return JSONResponse({"status": "ok"})
+
+
+@mcp.custom_route("/healthz", methods=["GET"], include_in_schema=False)
+async def healthz(request: Request) -> JSONResponse:
+    """Unauthenticated liveness for reverse proxies; static, nothing sensitive."""
     return JSONResponse({"status": "ok"})
 
 
@@ -810,17 +816,41 @@ if _DELETE_MODE == "full":
     )(delete_custom_item)
 
 
+# Webhook event log tool: registered only when the webhook receiver is configured
+# (INTERVALS_WEBHOOK_SECRET), like the delete-mode gate — no dead tool otherwise.
+from .remote import load_remote_settings as _load_remote_settings
+
+if _load_remote_settings().webhook_enabled:
+    from .tools.webhook_events import get_recent_events
+
+    mcp.tool(
+        name="icu_get_recent_events",
+        annotations={
+            "readOnlyHint": True,
+            "destructiveHint": False,
+            "idempotentHint": True,
+            "openWorldHint": False,
+        },
+    )(get_recent_events)
+
+
 # MCP Resources - Provide ongoing context
 @mcp.resource("intervals-icu://athlete/profile")
 async def athlete_profile_resource() -> str:
     """Complete athlete profile with fitness metrics and sport settings for context."""
-    from .auth import load_config
+    from fastmcp.exceptions import ToolError
+
     from .client import ICUAPIError, ICUClient
+    from .middleware import resolve_request_config
     from .response_builder import ResponseBuilder
     from .sport_settings_format import format_sport_settings_entry
 
-    # Load config directly since resources don't go through middleware
-    config = load_config()
+    # Resources don't go through the tool middleware, so resolve the per-request
+    # config (bearer token or API key) here.
+    try:
+        config = resolve_request_config()
+    except ToolError as e:
+        return ResponseBuilder.build_error_response(str(e), error_type="auth_error")
 
     try:
         async with ICUClient(config) as client:
@@ -1084,6 +1114,46 @@ Then offer to create the events in my calendar if I approve the plan."""
 
 
 @mcp.prompt()
+async def daily_coach_check(days_ahead: str = "2", coach_tag: str = "ai-coach") -> str:
+    """Daily coaching routine: check readiness, review recent training, and (re)plan the next days.
+
+    Args:
+        days_ahead: How many days ahead to plan (default 2)
+        coach_tag: Tag and external_id prefix that marks events the coach created
+    """
+    prefix = f"{coach_tag}-"
+    return f"""You are my training coach. Run today's check and plan the next {days_ahead} day(s).
+
+1. What changed: if the icu_get_recent_events tool is available, call it (default window
+   is the last 24 h) to see new uploads, wellness syncs and calendar edits. If it is not
+   available, continue.
+2. Readiness: icu_get_wellness_data for the last 7 days (HRV, resting HR, sleep) and
+   icu_get_fitness_summary (CTL / ATL / TSB). Compare today with my 7-day baseline.
+3. Recent training: icu_get_recent_activities with days_back=7. If an activity carries
+   a data_availability warning (Strava- or Garmin-restricted data), say so and do not
+   infer metrics for it.
+4. The plan as it stands: icu_get_calendar_events with days_back=1 and
+   days_ahead={days_ahead}. Respect races, notes and SICK/INJURED/HOLIDAY blocks. Events
+   whose external_id starts with "{prefix}" are yours; also call it with
+   external_id_prefix="{prefix}" to list only those. Report any push_errors.
+5. Zones: icu_get_sport_settings before prescribing intensities.
+6. Decide per day: keep, adjust, or replace YOUR events. Never change or delete events
+   you did not create — suggest changes to those instead.
+7. Write each planned workout as category WORKOUT with event_type (Ride, Run, ...),
+   indoor=true for trainer sessions, a clear name, tags ["{coach_tag}"],
+   external_id "{prefix}YYYY-MM-DD-<short-slug>", and the steps in `description` using
+   Intervals.icu workout syntax (intervals-icu://workout-syntax). Prefer
+   icu_bulk_create_events with upsert_by_external_id=true (OAuth connections) so
+   re-planning updates instead of duplicating; otherwise update existing events with
+   icu_update_event and create new ones with icu_create_event.
+8. Verify: every written workout should come back with workout_parsed=true; fix and
+   rewrite any that did not. Then re-read the calendar and report push_errors (sync to
+   Garmin / Zwift can lag a few minutes).
+9. Report briefly: readiness verdict with the numbers behind it, what you changed and
+   why, the plan for the next {days_ahead} day(s), and any warnings."""
+
+
+@mcp.prompt()
 async def verify_setup() -> str:
     """Verify the MCP server is working by exercising core tools against your account."""
     return """Verify my Intervals.icu MCP server setup by running through each tool category.
@@ -1258,10 +1328,18 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=None,
         help="URL path to mount the server under (HTTP transports only).",
     )
+    parser.add_argument(
+        "--log-level",
+        choices=("debug", "info", "warning", "error"),
+        default="info",
+        help="HTTP server log level (remote mode: secret path / OAuth / webhooks). Default: info.",
+    )
     args = parser.parse_args(argv)
     if args.transport != "stdio" and args.path is not None:
-        if args.path.removesuffix("/") == "/health":
-            parser.error("--path cannot be /health because it conflicts with the health route")
+        if args.path.removesuffix("/") in ("/health", "/healthz"):
+            parser.error(
+                "--path cannot be /health or /healthz because it conflicts with the health route"
+            )
     return args
 
 
@@ -1282,9 +1360,43 @@ def _emit_startup_log() -> None:
     )
 
 
+def _startup_error(message: str) -> NoReturn:
+    print(f"intervals-icu MCP configuration error: {message}", file=sys.stderr)
+    raise SystemExit(2)
+
+
 def main() -> None:
     """Main entry point for the Intervals.icu MCP server."""
+    from .remote import RemoteConfigError, load_remote_settings, run_remote
+
     args = _parse_args()
+    remote_settings = load_remote_settings()
+
+    # Remote features (secret path, OAuth, webhooks) are opt-in and HTTP-only.
+    # Validate before anything else so a bad secret stops the process early.
+    if args.transport != "stdio" and remote_settings.any_enabled:
+        if args.transport == "sse":
+            _startup_error(
+                "MCP_PATH_SECRET, OAuth and webhooks require --transport http "
+                "(streamable HTTP), not sse."
+            )
+        if remote_settings.path_secret_enabled and args.path is not None:
+            _startup_error("--path cannot be combined with MCP_PATH_SECRET.")
+        try:
+            remote_settings.validate_remote()
+        except RemoteConfigError as e:
+            _startup_error(str(e))
+        _emit_startup_log()
+        run_remote(
+            mcp,
+            remote_settings,
+            host=args.host,
+            port=args.port,
+            path=args.path,
+            log_level=args.log_level,
+        )
+        return
+
     _emit_startup_log()
 
     if args.transport == "stdio":

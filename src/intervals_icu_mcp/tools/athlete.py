@@ -103,7 +103,7 @@ async def list_athletes(
         async with ICUClient(config) as client:
             records = await client.list_athletes()
 
-            default_id = config.intervals_icu_athlete_id
+            default_id = config.display_athlete_id
             athletes: list[dict[str, Any]] = []
             for record in records:
                 athlete_id = record.get("id")
@@ -368,7 +368,7 @@ async def get_fitness_summary(
     try:
         async with ICUClient(config) as client:
             today = date.today().isoformat()
-            resolved_athlete = athlete_id or config.intervals_icu_athlete_id
+            resolved_athlete = athlete_id or config.display_athlete_id
             wellness = await client.get_wellness_for_date(today, athlete_id=athlete_id)
 
             ctl = wellness.ctl
