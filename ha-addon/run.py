@@ -30,8 +30,6 @@ OPTION_ENV = {
     "public_base_url": "PUBLIC_BASE_URL",
     "allowed_athlete_ids": "ALLOWED_ATHLETE_IDS",
     "scopes": "OAUTH_SCOPES",
-    "webhook_secret": "INTERVALS_WEBHOOK_SECRET",
-    "ha_webhook_url": "HA_WEBHOOK_URL",
 }
 LOG_LEVELS = ("debug", "info", "warning", "error")
 
@@ -85,8 +83,6 @@ def build_environment(options: Mapping[str, Any], base: Mapping[str, str]) -> di
                 "login will be rejected.",
                 file=sys.stderr,
             )
-    if _text(options, "ha_webhook_url") and not _text(options, "webhook_secret"):
-        raise AddonConfigError("ha_webhook_url requires webhook_secret.")
 
     env["DATA_DIR"] = DATA_DIR
     env.setdefault("FORWARDED_ALLOW_IPS", FORWARDED_ALLOW_IPS)
@@ -119,10 +115,6 @@ def describe(options: Mapping[str, Any]) -> str:
         modes.append("oauth")
     if _text(options, "path_secret"):
         modes.append("secret-path")
-    if _text(options, "webhook_secret"):
-        modes.append("webhooks")
-    if _text(options, "ha_webhook_url"):
-        modes.append("ha-hook")
     return "modes=" + ",".join(modes)
 
 

@@ -226,6 +226,6 @@ class TestLogMasking:
         assert SECRET.encode() not in scope["raw_path"]
 
     def test_settings_repr_hides_values(self):
-        settings = RemoteSettings(mcp_path_secret=SECRET, intervals_webhook_secret="w" * 20)
+        settings = RemoteSettings(mcp_path_secret=SECRET, oauth_jwt_signing_key="w" * 20)
         assert SECRET not in repr(settings)
         assert "w" * 20 not in repr(settings)

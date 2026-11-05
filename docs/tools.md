@@ -252,14 +252,6 @@ The user's personal additions to their account: custom charts on dashboards, cus
 | `icu_update_custom_item`    | Modify an existing custom addition (rename, reconfigure, change visibility)|
 | `icu_delete_custom_item`    | Permanently remove a custom addition *(only registered when `INTERVALS_ICU_DELETE_MODE=full`; data-bearing field types may cascade)* |
 
-### Webhook Events (1 tool, opt-in)
-
-Registered only when the webhook receiver is enabled (`INTERVALS_WEBHOOK_SECRET`, see [oauth.md](oauth.md#webhooks)); not counted in the totals above.
-
-| Tool                    | Description                                                                |
-| ----------------------- | -------------------------------------------------------------------------- |
-| `icu_get_recent_events`     | Intervals.icu webhook notifications this server received (type, athlete, timestamps, IDs), newest first; filter by `since` / `event_types`. With OAuth, only the caller's own events |
-
 ## MCP Resources
 
 Resources provide ongoing context to the LLM without requiring explicit tool calls.

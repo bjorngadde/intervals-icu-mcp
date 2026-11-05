@@ -23,12 +23,6 @@ configuration:
   scopes:
     name: OAuth scopes
     description: Comma-separated Intervals.icu scopes requested at login.
-  webhook_secret:
-    name: Webhook secret
-    description: At least 16 characters; must match the app's "Webhook Authorization Header". Enables /webhooks/intervals.
-  ha_webhook_url:
-    name: Home Assistant webhook URL
-    description: Optional. Each Intervals.icu webhook is forwarded here, e.g. http://homeassistant.local.hass.io:8123/api/webhook/<id>.
   log_level:
     name: Log level
     description: Server log level.

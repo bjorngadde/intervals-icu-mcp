@@ -816,24 +816,6 @@ if _DELETE_MODE == "full":
     )(delete_custom_item)
 
 
-# Webhook event log tool: registered only when the webhook receiver is configured
-# (INTERVALS_WEBHOOK_SECRET), like the delete-mode gate — no dead tool otherwise.
-from .remote import load_remote_settings as _load_remote_settings
-
-if _load_remote_settings().webhook_enabled:
-    from .tools.webhook_events import get_recent_events
-
-    mcp.tool(
-        name="icu_get_recent_events",
-        annotations={
-            "readOnlyHint": True,
-            "destructiveHint": False,
-            "idempotentHint": True,
-            "openWorldHint": False,
-        },
-    )(get_recent_events)
-
-
 # MCP Resources - Provide ongoing context
 @mcp.resource("intervals-icu://athlete/profile")
 async def athlete_profile_resource() -> str:
@@ -1124,32 +1106,29 @@ async def daily_coach_check(days_ahead: str = "2", coach_tag: str = "ai-coach") 
     prefix = f"{coach_tag}-"
     return f"""You are my training coach. Run today's check and plan the next {days_ahead} day(s).
 
-1. What changed: if the icu_get_recent_events tool is available, call it (default window
-   is the last 24 h) to see new uploads, wellness syncs and calendar edits. If it is not
-   available, continue.
-2. Readiness: icu_get_wellness_data for the last 7 days (HRV, resting HR, sleep) and
+1. Readiness: icu_get_wellness_data for the last 7 days (HRV, resting HR, sleep) and
    icu_get_fitness_summary (CTL / ATL / TSB). Compare today with my 7-day baseline.
-3. Recent training: icu_get_recent_activities with days_back=7. If an activity carries
+2. Recent training: icu_get_recent_activities with days_back=7. If an activity carries
    a data_availability warning (Strava- or Garmin-restricted data), say so and do not
    infer metrics for it.
-4. The plan as it stands: icu_get_calendar_events with days_back=1 and
+3. The plan as it stands: icu_get_calendar_events with days_back=1 and
    days_ahead={days_ahead}. Respect races, notes and SICK/INJURED/HOLIDAY blocks. Events
    whose external_id starts with "{prefix}" are yours; also call it with
    external_id_prefix="{prefix}" to list only those. Report any push_errors.
-5. Zones: icu_get_sport_settings before prescribing intensities.
-6. Decide per day: keep, adjust, or replace YOUR events. Never change or delete events
+4. Zones: icu_get_sport_settings before prescribing intensities.
+5. Decide per day: keep, adjust, or replace YOUR events. Never change or delete events
    you did not create — suggest changes to those instead.
-7. Write each planned workout as category WORKOUT with event_type (Ride, Run, ...),
+6. Write each planned workout as category WORKOUT with event_type (Ride, Run, ...),
    indoor=true for trainer sessions, a clear name, tags ["{coach_tag}"],
    external_id "{prefix}YYYY-MM-DD-<short-slug>", and the steps in `description` using
    Intervals.icu workout syntax (intervals-icu://workout-syntax). Prefer
    icu_bulk_create_events with upsert_by_external_id=true (OAuth connections) so
    re-planning updates instead of duplicating; otherwise update existing events with
    icu_update_event and create new ones with icu_create_event.
-8. Verify: every written workout should come back with workout_parsed=true; fix and
+7. Verify: every written workout should come back with workout_parsed=true; fix and
    rewrite any that did not. Then re-read the calendar and report push_errors (sync to
    Garmin / Zwift can lag a few minutes).
-9. Report briefly: readiness verdict with the numbers behind it, what you changed and
+8. Report briefly: readiness verdict with the numbers behind it, what you changed and
    why, the plan for the next {days_ahead} day(s), and any warnings."""
 
 
@@ -1332,7 +1311,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--log-level",
         choices=("debug", "info", "warning", "error"),
         default="info",
-        help="HTTP server log level (remote mode: secret path / OAuth / webhooks). Default: info.",
+        help="HTTP server log level (remote mode: secret path / OAuth). Default: info.",
     )
     args = parser.parse_args(argv)
     if args.transport != "stdio" and args.path is not None:
@@ -1372,12 +1351,12 @@ def main() -> None:
     args = _parse_args()
     remote_settings = load_remote_settings()
 
-    # Remote features (secret path, OAuth, webhooks) are opt-in and HTTP-only.
+    # Remote features (secret path, OAuth) are opt-in and HTTP-only.
     # Validate before anything else so a bad secret stops the process early.
     if args.transport != "stdio" and remote_settings.any_enabled:
         if args.transport == "sse":
             _startup_error(
-                "MCP_PATH_SECRET, OAuth and webhooks require --transport http "
+                "MCP_PATH_SECRET and OAuth require --transport http "
                 "(streamable HTTP), not sse."
             )
         if remote_settings.path_secret_enabled and args.path is not None:

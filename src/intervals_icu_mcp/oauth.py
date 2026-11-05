@@ -167,8 +167,6 @@ SCOPE_BY_TOOL: dict[str, str | None] = {
     "icu_create_custom_item": "SETTINGS:WRITE",
     "icu_update_custom_item": "SETTINGS:WRITE",
     "icu_delete_custom_item": "SETTINGS:WRITE",
-    # Webhook event log (local, no Intervals.icu call)
-    "icu_get_recent_events": None,
 }
 
 #: What the daily coach job uses: read training, wellness, fitness and the calendar;

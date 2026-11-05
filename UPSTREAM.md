@@ -39,10 +39,8 @@ conventions.
    `ALLOWED_ATHLETE_IDS`, `OAUTH_SCOPES` and `DATA_DIR`. It is tested end to end against a mocked
    Intervals.icu (DCR → consent → upstream → callback → token → tool call).
 
-There are two smaller items that could go in separately:
-- `indoor` and `external_id` parameters on `icu_create_event` / `icu_update_event` (additive);
-- an optional webhook receiver (`POST /webhooks/intervals` plus a read-only
-  `icu_get_recent_events` tool), registered only when configured.
+There is one smaller item that could go in separately: `indoor` and `external_id` parameters on
+`icu_create_event` / `icu_update_event` (additive).
 
 Notes: (3) would raise the `fastmcp` floor to 4.1.4, because it uses `OAuthProxy`'s
 upstream-client hook. Nothing changes which tools register by default.

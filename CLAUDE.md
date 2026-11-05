@@ -41,7 +41,6 @@ make docker/run       # Run Docker container
 | Workout syntax | `workout_syntax.py` | Intervals.icu workout DSL reference for LLMs |
 | Remote mode | `remote.py` | Opt-in HTTP features: secret path gate, log redaction, app builder/runner |
 | OAuth | `oauth.py` | `OAuthProxy` subclass for Intervals.icu (allowlist, scopes, token mapping) |
-| Webhooks | `webhooks.py` | `POST /webhooks/intervals` receiver + JSONL event log |
 | Tools | `tools/` | 13 tool modules (see below) |
 
 **For detailed architecture**: see `docs/architecture.md`
@@ -61,9 +60,8 @@ make docker/run       # Run Docker container
 11. `gear.py` — Manage gear and reminders
 12. `sport_settings.py` — FTP, FTHR, pace thresholds
 13. `custom_items.py` — Charts, custom fields, zones, etc.
-14. `webhook_events.py` — `icu_get_recent_events` (only registered with `INTERVALS_WEBHOOK_SECRET`)
 
-Remote/OAuth/webhook setup: `docs/oauth.md`. Home Assistant add-on: `ha-addon/` (+ `repository.yaml`).
+Remote/OAuth setup: `docs/oauth.md`. Home Assistant add-on: `ha-addon/` (+ `repository.yaml`).
 
 ## Code Style
 

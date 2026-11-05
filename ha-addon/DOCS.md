@@ -27,7 +27,7 @@ python3 -c 'import secrets; print(secrets.token_urlsafe(32))'
 openssl rand -base64 32 | tr '+/' '-_' | tr -d '='
 ```
 
-Use separate values for `path_secret` and `webhook_secret`. Store them in a password manager.
+Store the secret in a password manager.
 The add-on never logs them: the secret path shows up in logs as `/__secret__/mcp`.
 
 ## Options
@@ -42,11 +42,9 @@ The add-on never logs them: the secret path shows up in logs as `/__secret__/mcp
 | `public_base_url` | OAuth | The public URL NGINX serves, for example `https://intervals.example.com`. |
 | `allowed_athlete_ids` | OAuth | Comma-separated athlete IDs that may log in. **Empty rejects everyone.** |
 | `scopes` | OAuth | Default `ACTIVITY:READ,WELLNESS:READ,CALENDAR:WRITE,SETTINGS:READ`. It must match what the app allows. |
-| `webhook_secret` | webhooks | At least 16 characters. Turns on `POST /webhooks/intervals`. |
-| `ha_webhook_url` | webhooks | Optional Home Assistant webhook to forward each event to. |
 | `log_level` | all | `debug`, `info`, `warning` or `error`. |
 
-State (OAuth clients and tokens, encrypted, mode 0700; the webhook event log, mode 0600) is kept
+State (OAuth clients and tokens, encrypted, mode 0700) is kept
 in the add-on's `/data` directory. It is included in Home Assistant backups.
 
 ## Setup — secret URL mode (works today)
@@ -76,22 +74,6 @@ Anyone who has that URL can use your Intervals.icu account through the tools. To
 4. If the athlete is not in `allowed_athlete_ids`, the login ends on an "Access denied" page and
    the authorisation is revoked again in Intervals.icu.
 
-## Setup — webhooks (OAuth apps only)
-
-Intervals.icu sends webhooks only to OAuth apps, for the athletes who authorised them.
-
-1. Set `webhook_secret` and restart.
-2. On the app page in Intervals.icu:
-   - **Webhook URL:** `https://<host>/webhooks/intervals`
-   - **Webhook Authorization Header:** the exact `webhook_secret` value (no `Bearer` needed; it
-     is accepted either way).
-   - **Tick:** `ACTIVITY_UPLOADED`, `WELLNESS_UPDATED`, `CALENDAR_UPDATED` and
-     `SPORT_SETTINGS_UPDATED`. `ACTIVITY_ANALYZED` is optional.
-3. Claude can now call `icu_get_recent_events(since=...)` to see what changed.
-4. Optional: create a Home Assistant automation with a **Webhook** trigger, and put its URL in
-   `ha_webhook_url`, for example `http://homeassistant.local.hass.io:8123/api/webhook/<id>`. Each
-   delivery is forwarded as `{"source": "intervals.icu", "events": [...]}`.
-
 ## NGINX (Home Assistant SSL proxy add-on)
 
 1. Copy [`nginx/intervals.conf`](nginx/intervals.conf) to `/share/nginx_proxy/intervals.conf`,
@@ -111,7 +93,7 @@ Intervals.icu sends webhooks only to OAuth apps, for the athletes who authorised
 The snippet proxies to the add-on's published port and passes on the `X-Forwarded-*` headers.
 It turns buffering off and allows 1-hour reads for streaming, and it turns off the access log so
 that secret paths and tokens never land on disk. It also rate-limits each client IP to 10 requests
-per second (burst 50, then `429`), which caps any guessing of secret paths or webhook secrets. **Do not forward port 8099 on your router.** Only
+per second (burst 50, then `429`), which caps any guessing of secret paths. **Do not forward port 8099 on your router.** Only
 443 (NGINX) should be reachable from the internet.
 
 The add-on trusts `X-Forwarded-*` only from the Supervisor network (`172.30.32.0/23`). Public URLs

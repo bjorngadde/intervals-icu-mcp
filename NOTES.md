@@ -403,3 +403,22 @@ button for hhopke on this repository's page), the hhopke Discussions links in
 
 When merging upstream changes, expect upstream to keep editing the removed files. Resolve such
 conflicts by keeping them deleted.
+
+---
+
+## Webhooks removed
+
+The webhook receiver from Phase 4 has been removed: `POST /webhooks/intervals`,
+`icu_get_recent_events`, the JSONL event log, the Home Assistant forward, and the add-on options
+`webhook_secret` / `ha_webhook_url` (add-on version 0.2.0).
+
+**Why:** MCP is pull-only. Claude reads data when it runs, and the server cannot start a Claude
+run. The daily coach reads the last 7 days of activities, wellness and the calendar anyway, so it
+can see what changed from the data itself: new activities, and each event's `updated` timestamp
+together with its `ai-coach-` external ID. The event log only saved a little reasoning, and it
+only works with an approved OAuth app.
+
+**When it would be worth bringing back:** push behaviour outside Claude, such as a Home Assistant
+notification when a ride is uploaded, or post-ride analysis triggered by a webhook. The code is
+in git history (`webhooks.py`, `tools/webhook_events.py`, `tests/test_webhooks.py`, commit
+`c604d19`). Phase 4 above documents the design.

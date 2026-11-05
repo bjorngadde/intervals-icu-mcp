@@ -1,4 +1,4 @@
-# OAuth, secret URL and webhooks
+# OAuth and secret URL
 
 How to run the server as a **remote MCP server** that Claude (web, mobile, desktop and scheduled
 tasks) can use as a *custom connector*, with authentication built in. Everything here is
@@ -18,18 +18,15 @@ behind a TLS-terminating reverse proxy.
 
 | Variable | Mode | Meaning |
 |---|---|---|
-| `MCP_PATH_SECRET` | secret URL | At least 32 characters from `[A-Za-z0-9._~-]`. MCP is served **only** at `/<secret>/mcp`; every other path returns 404, except health, OAuth and webhook routes. A shorter secret stops the server at startup. |
+| `MCP_PATH_SECRET` | secret URL | At least 32 characters from `[A-Za-z0-9._~-]`. MCP is served **only** at `/<secret>/mcp`; every other path returns 404, except the health and OAuth routes. A shorter secret stops the server at startup. |
 | `INTERVALS_OAUTH_CLIENT_ID` | OAuth | From Intervals.icu → Settings → Apps → *Manage App*. |
 | `INTERVALS_OAUTH_CLIENT_SECRET` | OAuth | Same page. Also the root of the token-signing and storage keys, unless `OAUTH_JWT_SIGNING_KEY` is set. Rotating it invalidates every issued token. |
 | `PUBLIC_BASE_URL` | OAuth | The public https URL, for example `https://mcp.example.com`. The issuer, metadata and callback URLs are built from it, never from request headers. |
 | `ALLOWED_ATHLETE_IDS` | OAuth | Comma-separated athlete IDs. `i123456` and `123456` both work. **Empty rejects everyone.** It is re-checked on every request. |
 | `OAUTH_SCOPES` | OAuth | Comma-separated. Default `ACTIVITY:READ,WELLNESS:READ,CALENDAR:WRITE,SETTINGS:READ`; see the table below. |
-| `DATA_DIR` | OAuth, webhooks | Persistent directory (default `./data`). OAuth state lives in `DATA_DIR/oauth` (encrypted, mode 0700) and the webhook log in `DATA_DIR/webhook-events.jsonl`. |
+| `DATA_DIR` | OAuth | Persistent directory (default `./data`). OAuth state lives in `DATA_DIR/oauth` (encrypted, mode 0700). |
 | `OAUTH_JWT_SIGNING_KEY` | OAuth (optional) | Separate key for issued tokens and storage encryption. |
 | `OAUTH_ALLOWED_CLIENT_REDIRECT_URIS` | OAuth (optional) | MCP-client callbacks accepted at registration. The default is Claude (`https://claude.ai/api/mcp/auth_callback`, `https://claude.com/api/mcp/auth_callback`) plus loopback (`http://localhost:*`, `http://127.0.0.1:*`). `*` allows any. |
-| `INTERVALS_WEBHOOK_SECRET` | webhooks | At least 16 characters. Turns on `POST /webhooks/intervals` and the `icu_get_recent_events` tool. |
-| `HA_WEBHOOK_URL` | webhooks (optional) | When set, each accepted delivery is also POSTed to this URL, for example a Home Assistant webhook. Off by default. |
-| `WEBHOOK_LOG_MAX_BYTES` | webhooks (optional) | Size at which the event log rotates (default 1 MiB, keeps one `.1` backup). |
 | `FORWARDED_ALLOW_IPS` | all | Uvicorn's setting: the proxies whose `X-Forwarded-*` headers are trusted (default `127.0.0.1`). |
 
 Generate secrets with:
@@ -120,7 +117,7 @@ whose scope was not granted fails with a "lacks the scope" error.
 | `LIBRARY:WRITE` | `icu_create_workout`, `icu_update_workout`, `icu_delete_workout`, `icu_bulk_create_workouts`, `icu_create_workout_folder`, `icu_delete_workout_folder` |
 | `SETTINGS:READ` | `icu_get_athlete_profile`, `icu_get_gear_list`, `icu_get_sport_settings`, `icu_get_custom_items`, `icu_get_custom_item` |
 | `SETTINGS:WRITE` | `icu_update_athlete_notes`, `icu_create_gear`, `icu_update_gear`, `icu_delete_gear`, `icu_create_gear_reminder`, `icu_update_gear_reminder`, `icu_update_sport_settings`, `icu_create_sport_settings`, `icu_delete_sport_settings`, `icu_create_custom_item`, `icu_update_custom_item`, `icu_delete_custom_item` |
-| `— (not available with OAuth / local)` | `icu_list_athletes`, `icu_get_recent_events` |
+| `— (not available with OAuth)` | `icu_list_athletes` |
 
 `icu_list_athletes` calls `GET /athletes`, which needs an API key. Use it through the secret URL
 or stdio.
@@ -136,26 +133,3 @@ intervals-icu-mcp --transport http --host 0.0.0.0 --port 8000
 In Claude, add the custom connector with URL `https://mcp.example.com/<secret>/mcp` and no
 authentication. Anyone who has the URL can use every tool with your API key, so treat it like a
 password. To rotate it, change `MCP_PATH_SECRET` and update the connector.
-
-## Webhooks
-
-Intervals.icu sends webhooks to OAuth apps for the athletes who authorised them. With
-`INTERVALS_WEBHOOK_SECRET` set, the server accepts them at `POST /webhooks/intervals`:
-
-- **Authentication.** In the app settings, set *Webhook Authorization Header* to the same value
-  as `INTERVALS_WEBHOOK_SECRET`. A header of `<secret>` or `Bearer <secret>` is accepted. A
-  `secret` field in the JSON body is also accepted, because the Intervals.icu API docs describe
-  that variant. Both are compared in constant time. Anything else gets **401**.
-- **Types to tick:** `ACTIVITY_UPLOADED`, `ACTIVITY_ANALYZED` (optional; sent about 60 s after
-  processing), `WELLNESS_UPDATED`, `CALENDAR_UPDATED` and `SPORT_SETTINGS_UPDATED`. Unknown
-  types are logged and stored, never rejected. The legacy `CALENDAR_EVENT_*` types are superseded
-  by `CALENDAR_UPDATED`.
-- **Event log.** Each event's type, athlete, timestamp and IDs are appended to
-  `DATA_DIR/webhook-events.jsonl` (mode 0600). The log rotates at `WEBHOOK_LOG_MAX_BYTES`. No
-  activity payloads are stored. When `ALLOWED_ATHLETE_IDS` is set, events for other athletes are
-  dropped.
-- **Tool.** `icu_get_recent_events(since, event_types, limit)` returns the logged events, newest
-  first. In OAuth mode only the caller's own events are returned.
-- **Home Assistant hook.** With `HA_WEBHOOK_URL` set, a summary of each delivery is POSTed there
-  in the background. The server never tries to trigger Claude itself.
-- Activity webhooks are not sent for Strava-sourced activities.

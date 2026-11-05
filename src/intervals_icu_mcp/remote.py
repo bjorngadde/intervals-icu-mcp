@@ -1,4 +1,4 @@
-"""Remote (HTTP) deployment features: secret path, OAuth, webhooks.
+"""Remote (HTTP) deployment features: secret path and OAuth.
 
 Everything here is opt-in through environment variables and only applies to the
 streamable-HTTP transport. When none of the settings is present, ``server.main``
@@ -71,10 +71,6 @@ class RemoteSettings(BaseSettings):
     oauth_allowed_client_redirect_uris: str = ""
     data_dir: str = ""
 
-    # Phase 4 — webhook receiver
-    intervals_webhook_secret: str = ""
-    ha_webhook_url: str = ""
-
     def __repr_args__(self):  # pragma: no cover - trivial
         # Never render values: several fields are secrets.
         return [(name, "***" if getattr(self, name) else "") for name in type(self).model_fields]
@@ -90,12 +86,8 @@ class RemoteSettings(BaseSettings):
         return bool(self.intervals_oauth_client_id or self.intervals_oauth_client_secret)
 
     @property
-    def webhook_enabled(self) -> bool:
-        return bool(self.intervals_webhook_secret)
-
-    @property
     def any_enabled(self) -> bool:
-        return self.path_secret_enabled or self.oauth_enabled or self.webhook_enabled
+        return self.path_secret_enabled or self.oauth_enabled
 
     @property
     def data_path(self) -> Path:
@@ -120,19 +112,12 @@ class RemoteSettings(BaseSettings):
             from .oauth import validate_oauth_settings
 
             validate_oauth_settings(self)
-        if self.ha_webhook_url and not self.webhook_enabled:
-            raise RemoteConfigError("HA_WEBHOOK_URL requires INTERVALS_WEBHOOK_SECRET to be set.")
-        if self.webhook_enabled and len(self.intervals_webhook_secret) < 16:
-            raise RemoteConfigError("INTERVALS_WEBHOOK_SECRET must be at least 16 characters.")
 
     def secrets_to_redact(self) -> list[str]:
         values = [
             self.mcp_path_secret,
             self.intervals_oauth_client_secret,
             self.oauth_jwt_signing_key,
-            self.intervals_webhook_secret,
-            # A Home Assistant webhook URL embeds its webhook ID, which is a secret.
-            self.ha_webhook_url,
         ]
         return [v for v in values if v]
 
@@ -216,7 +201,7 @@ class PathSecretGate:
     - ``/<secret>/mcp`` (constant-time match) is rewritten **in place** to
       ``/__secret__/mcp`` and handed to the app. In-place, so uvicorn's access log, which
       reads the same scope dict, records the masked path.
-    - Paths in ``public_paths`` (health, webhooks, OAuth endpoints and the OAuth
+    - Paths in ``public_paths`` (health, OAuth endpoints and the OAuth
       ``/mcp`` when enabled) pass through unchanged.
     - Everything else, including ``/mcp`` without OAuth and the literal masked
       path, gets a 404.
@@ -300,17 +285,10 @@ def build_remote_app(
     - OAuth on:       ``/mcp`` requires an Intervals.icu OAuth token (bearer mode).
     - Secret on:      ``/<secret>/mcp`` serves the API-key mode endpoint, no OAuth.
     - Both:           both of the above, side by side.
-    - Webhooks on:    ``POST /webhooks/intervals``.
     - Always:         ``/health`` and ``/healthz``.
     """
     settings.validate_remote()
     description: list[str] = []
-
-    if settings.webhook_enabled:
-        from .webhooks import register_webhook_route
-
-        register_webhook_route(server, settings)
-        description.append("webhooks=on")
 
     mcp_path = path or DEFAULT_MCP_PATH
     if settings.oauth_enabled:
