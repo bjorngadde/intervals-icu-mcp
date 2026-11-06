@@ -556,6 +556,120 @@ async def delete_activity(
         )
 
 
+#: Activity types that count as the same sport when matching duplicates.
+_SPORT_FAMILIES: dict[str, str] = {
+    "Ride": "ride",
+    "VirtualRide": "ride",
+    "MountainBikeRide": "ride",
+    "GravelRide": "ride",
+    "EBikeRide": "ride",
+    "EMountainBikeRide": "ride",
+    "Velomobile": "ride",
+    "Run": "run",
+    "VirtualRun": "run",
+    "TrailRun": "run",
+    "Swim": "swim",
+    "OpenWaterSwim": "swim",
+}
+
+#: Share of the shorter activity that must overlap the other one in time.
+DUPLICATE_MIN_OVERLAP = 0.5
+
+
+def _sport_family(activity_type: str | None) -> str:
+    return _SPORT_FAMILIES.get(activity_type or "", activity_type or "")
+
+
+def _span(activity: Any) -> tuple[datetime, int]:
+    seconds = activity.elapsed_time or activity.moving_time or 0
+    start = activity.start_date_local
+    return start.replace(tzinfo=None), int(seconds)
+
+
+def duplicate_overlap(a: Any, b: Any) -> tuple[int, float]:
+    """Seconds two activities overlap, and that as a share of the shorter one."""
+    a_start, a_len = _span(a)
+    b_start, b_len = _span(b)
+    a_end = a_start + timedelta(seconds=a_len)
+    b_end = b_start + timedelta(seconds=b_len)
+    overlap = (min(a_end, b_end) - max(a_start, b_start)).total_seconds()
+    overlap_s = max(0, int(overlap))
+    shorter = min(a_len, b_len)
+    return overlap_s, (overlap_s / shorter if shorter > 0 else 0.0)
+
+
+async def delete_duplicate_activity(
+    activity_id: Annotated[str, "The duplicate copy to delete"],
+    keep_activity_id: Annotated[str, "The copy of the same session that is kept"],
+    ctx: Context | None = None,
+) -> str:
+    """Delete one copy of a session that was recorded twice (e.g. a trainer app and a watch).
+
+    Guarded, so it is available in safe mode: it deletes only when both activities are the
+    same sport and overlap in time for at least half of the shorter one, and never the one
+    to keep. Both are fetched first and the reply says what was kept and what was removed.
+    Intervals.icu tombstones a deleted activity, so the device sync does not import it again.
+    Use icu_delete_activity (full mode only) to delete anything else.
+    """
+    assert ctx is not None
+    config: ICUConfig = await ctx.get_state("config")
+
+    if activity_id == keep_activity_id:
+        return ResponseBuilder.build_error_response(
+            "activity_id and keep_activity_id are the same activity",
+            error_type="validation_error",
+        )
+
+    try:
+        async with ICUClient(config) as client:
+            dup = await client.get_activity(activity_id=activity_id)
+            keep = await client.get_activity(activity_id=keep_activity_id)
+
+            if _sport_family(dup.type) != _sport_family(keep.type):
+                return ResponseBuilder.build_error_response(
+                    f"Not a duplicate: {activity_id} is {dup.type}, "
+                    f"{keep_activity_id} is {keep.type}",
+                    error_type="validation_error",
+                )
+            overlap_s, share = duplicate_overlap(dup, keep)
+            if share < DUPLICATE_MIN_OVERLAP:
+                return ResponseBuilder.build_error_response(
+                    f"Not a duplicate: the activities overlap {overlap_s} s "
+                    f"({share:.0%} of the shorter one, {DUPLICATE_MIN_OVERLAP:.0%} needed)",
+                    error_type="validation_error",
+                )
+
+            await client.delete_activity(activity_id)
+
+            def _brief(a: Any) -> dict[str, Any]:
+                return {
+                    "id": a.id,
+                    "name": a.name,
+                    "type": a.type,
+                    "start_date": a.start_date_local.isoformat(),
+                    "elapsed_seconds": a.elapsed_time or a.moving_time,
+                    "device": a.device_name,
+                }
+
+            return ResponseBuilder.build_response(
+                data={
+                    "deleted": _brief(dup),
+                    "kept": _brief(keep),
+                    "overlap_seconds": overlap_s,
+                    "overlap_share_of_shorter": round(share, 3),
+                },
+                query_type="delete_duplicate_activity",
+                metadata={"message": f"Deleted duplicate {activity_id}, kept {keep_activity_id}"},
+            )
+
+    except ICUAPIError as e:
+        return ResponseBuilder.build_error_response(e.message, error_type="api_error")
+    except Exception as e:
+        return ResponseBuilder.build_error_response(
+            f"Unexpected error: {str(e)}", error_type="internal_error"
+        )
+
+
 def _download_and_respond(
     activity_id: str,
     file_content: bytes,

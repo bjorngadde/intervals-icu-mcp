@@ -43,6 +43,7 @@ _DELETE_MODE = load_config().intervals_icu_delete_mode
 from .tools.activities import (
     bulk_create_manual_activities,
     delete_activity,
+    delete_duplicate_activity,
     download_activity_file,
     download_fit_file,
     download_gpx_file,
@@ -218,6 +219,16 @@ if _DELETE_MODE == "full":
             "openWorldHint": True,
         },
     )(delete_activity)
+if _DELETE_MODE in ("safe", "full"):
+    mcp.tool(
+        name="icu_delete_duplicate_activity",
+        annotations={
+            "readOnlyHint": False,
+            "destructiveHint": True,
+            "idempotentHint": True,
+            "openWorldHint": True,
+        },
+    )(delete_duplicate_activity)
 mcp.tool(
     name="icu_download_activity_file",
     annotations={

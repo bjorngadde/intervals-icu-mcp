@@ -43,6 +43,12 @@ class TestEnvironmentMapping:
         assert env["PATH"] == "/bin"
         assert "INTERVALS_OAUTH_CLIENT_ID" not in env  # empty options are not exported
 
+    def test_delete_mode_maps_env(self):
+        env = run.build_environment(
+            _opts(api_key="k", athlete_id="i1", path_secret=SECRET, delete_mode="full"), {}
+        )
+        assert env["INTERVALS_ICU_DELETE_MODE"] == "full"
+
     def test_secret_mode_needs_api_key(self):
         with pytest.raises(run.AddonConfigError) as exc:
             run.build_environment(_opts(path_secret=SECRET), {})

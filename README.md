@@ -167,8 +167,8 @@ claude mcp add intervals-icu --scope user \
 
 ## Tools
 
-73 tools, 4 resources and 10 prompts.
-The default delete mode registers 70 of the tools. Full reference: [`docs/tools.md`](docs/tools.md).
+74 tools, 4 resources and 10 prompts.
+The default delete mode registers 71 of the tools. Full reference: [`docs/tools.md`](docs/tools.md).
 
 | Category | Tools | Summary |
 |---|---|---|

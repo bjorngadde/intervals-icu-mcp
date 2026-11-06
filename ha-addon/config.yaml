@@ -1,5 +1,5 @@
 name: Intervals.icu MCP
-version: "0.2.0"
+version: "0.3.0"
 slug: intervals_icu_mcp
 description: Remote MCP server for Intervals.icu (OAuth or secret URL) for Claude custom connectors
 url: https://github.com/bjorngadde/intervals-icu-mcp/tree/main/ha-addon
@@ -25,6 +25,7 @@ options:
   public_base_url: ""
   allowed_athlete_ids: ""
   scopes: "ACTIVITY:READ,WELLNESS:READ,CALENDAR:WRITE,SETTINGS:READ"
+  delete_mode: safe
   log_level: info
 schema:
   api_key: password?
@@ -35,4 +36,5 @@ schema:
   public_base_url: str?
   allowed_athlete_ids: str?
   scopes: str?
+  delete_mode: list(safe|full|none)
   log_level: list(debug|info|warning|error)
