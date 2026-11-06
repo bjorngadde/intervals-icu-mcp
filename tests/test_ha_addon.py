@@ -38,6 +38,12 @@ class TestEnvironmentMapping:
         assert env["MCP_PATH_SECRET"] == SECRET
         assert env["INTERVALS_ICU_API_KEY"] == "k"
         assert env["INTERVALS_ICU_ATHLETE_ID"] == "i1"
+
+    def test_delete_mode_maps_env(self):
+        env = run.build_environment(
+            _opts(api_key="k", athlete_id="i1", path_secret=SECRET, delete_mode="full"), {}
+        )
+        assert env["INTERVALS_ICU_DELETE_MODE"] == "full"
         assert env["DATA_DIR"] == "/data"
         assert env["FORWARDED_ALLOW_IPS"] == "172.30.32.0/23,127.0.0.1"
         assert env["PATH"] == "/bin"

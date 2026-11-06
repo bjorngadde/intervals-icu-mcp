@@ -42,6 +42,7 @@ The add-on never logs them: the secret path shows up in logs as `/__secret__/mcp
 | `public_base_url` | OAuth | The public URL NGINX serves, for example `https://intervals.example.com`. |
 | `allowed_athlete_ids` | OAuth | Comma-separated athlete IDs that may log in. **Empty rejects everyone.** |
 | `scopes` | OAuth | Default `ACTIVITY:READ,WELLNESS:READ,CALENDAR:WRITE,SETTINGS:READ`. It must match what the app allows. |
+| `delete_mode` | all | Which delete tools Claude gets: `safe` (default: future events, gear, library items, notes and duplicate activities), `full` (everything, including past events and activities) or `none`. See [Delete Safety Mode](https://github.com/bjorngadde/intervals-icu-mcp/blob/main/docs/tools.md#delete-safety-mode). |
 | `log_level` | all | `debug`, `info`, `warning` or `error`. |
 
 State (OAuth clients and tokens, encrypted, mode 0700) is kept

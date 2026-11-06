@@ -30,6 +30,7 @@ OPTION_ENV = {
     "public_base_url": "PUBLIC_BASE_URL",
     "allowed_athlete_ids": "ALLOWED_ATHLETE_IDS",
     "scopes": "OAUTH_SCOPES",
+    "delete_mode": "INTERVALS_ICU_DELETE_MODE",
 }
 LOG_LEVELS = ("debug", "info", "warning", "error")
 

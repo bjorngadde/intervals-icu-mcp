@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.0
+
+- New option `delete_mode` (`safe`, `full` or `none`), passed on as `INTERVALS_ICU_DELETE_MODE`.
+- New tool `icu_delete_duplicate_activity`, available in `safe` and `full` mode.
+
 ## 0.2.0
 
 - Removed the webhook receiver and the `webhook_secret` / `ha_webhook_url` options. The coach
