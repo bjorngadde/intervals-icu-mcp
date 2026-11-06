@@ -14,7 +14,7 @@ import dotenv
 # might do `from dotenv import load_dotenv` and capture the real binding.
 for _key in [k for k in os.environ if k.startswith("INTERVALS_ICU_")]:
     del os.environ[_key]
-# Remote-deployment settings (secret path, OAuth, webhooks) must not leak in either.
+# Remote-deployment settings (secret path, OAuth) must not leak in either.
 for _key in [
     "MCP_PATH_SECRET",
     "INTERVALS_OAUTH_CLIENT_ID",
@@ -25,8 +25,6 @@ for _key in [
     "OAUTH_JWT_SIGNING_KEY",
     "OAUTH_ALLOWED_CLIENT_REDIRECT_URIS",
     "DATA_DIR",
-    "INTERVALS_WEBHOOK_SECRET",
-    "HA_WEBHOOK_URL",
 ]:
     os.environ.pop(_key, None)
 

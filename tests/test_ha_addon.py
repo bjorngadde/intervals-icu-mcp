@@ -56,8 +56,6 @@ class TestEnvironmentMapping:
                 public_base_url="https://intervals.example.com",
                 allowed_athlete_ids="i1",
                 scopes="ACTIVITY:READ",
-                webhook_secret="w" * 20,
-                ha_webhook_url="http://ha/api/webhook/x",
             ),
             {},
         )
@@ -66,8 +64,6 @@ class TestEnvironmentMapping:
         assert env["PUBLIC_BASE_URL"] == "https://intervals.example.com"
         assert env["ALLOWED_ATHLETE_IDS"] == "i1"
         assert env["OAUTH_SCOPES"] == "ACTIVITY:READ"
-        assert env["INTERVALS_WEBHOOK_SECRET"] == "w" * 20
-        assert env["HA_WEBHOOK_URL"] == "http://ha/api/webhook/x"
 
     @pytest.mark.parametrize(
         "missing", ["oauth_client_id", "oauth_client_secret", "public_base_url"]
@@ -90,13 +86,6 @@ class TestEnvironmentMapping:
             {},
         )
         assert "allowed_athlete_ids is empty" in capsys.readouterr().err
-
-    def test_ha_url_needs_webhook_secret(self):
-        with pytest.raises(run.AddonConfigError):
-            run.build_environment(
-                _opts(api_key="k", athlete_id="i1", path_secret=SECRET, ha_webhook_url="http://h"),
-                {},
-            )
 
     def test_stale_env_values_cannot_leak_in(self):
         env = run.build_environment(
@@ -154,7 +143,7 @@ class TestAddonFiles:
         config = yaml.safe_load((ADDON / "config.yaml").read_text())
         assert set(config["options"]) == set(config["schema"])
         assert set(config["options"]) == set(run.OPTION_ENV) | {"log_level"}
-        for secret in ("api_key", "path_secret", "oauth_client_secret", "webhook_secret"):
+        for secret in ("api_key", "path_secret", "oauth_client_secret"):
             assert config["schema"][secret].startswith("password")
         assert config["arch"] == ["amd64", "aarch64"]
         assert config["ports"] == {"8099/tcp": 8099}

@@ -15,8 +15,7 @@ scheduled tasks. The connector is protected either by an Intervals.icu **OAuth**
 
 > This is a fork of [hhopke/intervals-icu-mcp](https://github.com/hhopke/intervals-icu-mcp)
 > (MIT), which itself started from [eddmann/intervals-icu-mcp](https://github.com/eddmann/intervals-icu-mcp).
-> The fork adds per-request OAuth auth, a secret-path mode, an Intervals.icu webhook receiver,
-> coach-oriented calendar features and the Home Assistant add-on. See [Credits](#credits--upstream).
+> The fork adds per-request OAuth auth, a secret-path mode, coach-oriented calendar features and the Home Assistant add-on. See [Credits](#credits--upstream).
 
 [![Tests](https://github.com/bjorngadde/intervals-icu-mcp/actions/workflows/test.yml/badge.svg)](https://github.com/bjorngadde/intervals-icu-mcp/actions/workflows/test.yml)
 [![Home Assistant add-on](https://github.com/bjorngadde/intervals-icu-mcp/actions/workflows/ha-addon.yml/badge.svg)](https://github.com/bjorngadde/intervals-icu-mcp/actions/workflows/ha-addon.yml)
@@ -30,8 +29,6 @@ flowchart LR
     N -- ":8099" --> A["Intervals.icu MCP<br/>(HA add-on)"]
     A -- "REST API" --> I["Intervals.icu"]
     I -- "planned workouts" --> D["Garmin · Zwift"]
-    I -. "webhooks" .-> N
-    A -. "optional event forward" .-> H["Home Assistant"]
 ```
 
 - **Read:** activities, streams and intervals; wellness (HRV, sleep, resting HR); fitness and
@@ -41,8 +38,6 @@ flowchart LR
   instead of duplicating them.
 - **Check:** whether each workout parsed into steps, and whether Intervals.icu managed to push
   it to Garmin or Zwift (`push_errors`).
-- **React:** Intervals.icu webhooks (new upload, wellness sync, calendar change) are logged and
-  available to Claude through `icu_get_recent_events`.
 
 ## Setup (Home Assistant)
 
@@ -81,8 +76,8 @@ a prompt like this:
 
 ```text
 Run my daily Intervals.icu coach check and plan the next 2 days.
-Check what changed (icu_get_recent_events, if available), my readiness (wellness for
-the last 7 days and fitness summary), the last 7 days of training, and the calendar.
+Check my readiness (wellness for the last 7 days and fitness summary), the last 7
+days of training, and the calendar.
 Only change events whose external_id starts with "ai-coach-". Write each workout
 with indoor set correctly, tags ["ai-coach"], external_id "ai-coach-YYYY-MM-DD-<slug>"
 and Intervals.icu workout syntax in the description. Then check that the workouts
@@ -102,19 +97,6 @@ Conventions the coach relies on:
 | Did it reach the watch? | `push_errors` on calendar and event responses (sync can lag a few minutes) |
 | Missing Garmin data | Activities that come back from the API without metrics are flagged `data_restricted`, with a warning not to infer numbers |
 | Safe deletes | By default (`INTERVALS_ICU_DELETE_MODE=safe`) only events from tomorrow onwards can be deleted |
-
-## Webhooks (optional, OAuth apps only)
-
-Intervals.icu sends webhooks to OAuth apps for the athletes who authorised them. To use them:
-
-1. Set the add-on's `webhook_secret`.
-2. On the app page in Intervals.icu, set the webhook URL to `https://<host>/webhooks/intervals`
-   and the *Webhook Authorization Header* to the same secret.
-3. Tick `ACTIVITY_UPLOADED`, `WELLNESS_UPDATED`, `CALENDAR_UPDATED` and `SPORT_SETTINGS_UPDATED`.
-
-Events are stored as small summaries (type, athlete, time and IDs) and can be read with
-`icu_get_recent_events`. They can also be forwarded to a Home Assistant webhook through
-`ha_webhook_url`.
 
 ## Security
 
@@ -147,7 +129,7 @@ uvx --from git+https://github.com/bjorngadde/intervals-icu-mcp intervals-icu-mcp
 
 Configure it with the same environment variables the add-on sets, for example
 `MCP_PATH_SECRET`, `INTERVALS_OAUTH_CLIENT_ID` / `_SECRET`, `PUBLIC_BASE_URL`,
-`ALLOWED_ATHLETE_IDS`, `DATA_DIR` and `INTERVALS_WEBHOOK_SECRET`. The full table is in
+`ALLOWED_ATHLETE_IDS` and `DATA_DIR`. The full table is in
 [`docs/oauth.md`](docs/oauth.md). Without any of these set, the HTTP server has **no
 authentication**; see [`docs/remote-deployment.md`](docs/remote-deployment.md).
 
@@ -185,7 +167,7 @@ claude mcp add intervals-icu --scope user \
 
 ## Tools
 
-73 tools, plus `icu_get_recent_events` when webhooks are enabled; 4 resources and 10 prompts.
+73 tools, 4 resources and 10 prompts.
 The default delete mode registers 70 of the tools. Full reference: [`docs/tools.md`](docs/tools.md).
 
 | Category | Tools | Summary |
@@ -201,7 +183,6 @@ The default delete mode registers 70 of the tools. Full reference: [`docs/tools.
 | Gear | 6 | Equipment and maintenance reminders |
 | Sport Settings | 4 | FTP, FTHR, pace thresholds and zones |
 | Custom Items | 5 | Custom charts, fields, zones and panels |
-| Webhook Events | 1 | `icu_get_recent_events`, only when webhooks are enabled |
 
 ## Development
 

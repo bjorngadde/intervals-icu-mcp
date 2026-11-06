@@ -9,7 +9,7 @@ With the athlete's authorization, the server reads activities, wellness data, fi
 Data is passed on request to the athlete's own AI assistant to analyse training and plan workouts. It is not sold, shared with third parties or used for advertising.
 
 ## Storage
-The server does not keep copies of training data. It stores only what it needs to work: OAuth tokens and client registrations, plus a small log of webhook events (event type, IDs and timestamps). These are kept on the owner's own server and are never logged in plain text.
+The server does not keep copies of training data. It stores only what it needs to work: OAuth tokens and client registrations. These are kept on the owner's own server and are never logged in plain text.
 
 ## Revoking access
 Access can be revoked at any time under Settings → Apps in Intervals.icu. Stored tokens and event logs are deleted on request.
