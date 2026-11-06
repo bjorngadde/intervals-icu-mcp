@@ -94,6 +94,7 @@ SCOPE_BY_TOOL: dict[str, str | None] = {
     "icu_update_activity_streams": "ACTIVITY:WRITE",
     "icu_bulk_create_manual_activities": "ACTIVITY:WRITE",
     "icu_delete_activity": "ACTIVITY:WRITE",
+    "icu_delete_duplicate_activity": "ACTIVITY:WRITE",
     "icu_download_activity_file": "ACTIVITY:READ",
     "icu_download_fit_file": "ACTIVITY:READ",
     "icu_download_gpx_file": "ACTIVITY:READ",

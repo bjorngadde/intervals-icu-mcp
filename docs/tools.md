@@ -1,6 +1,6 @@
 # Tool, Resource, and Prompt Reference
 
-Complete inventory of everything the Intervals.icu MCP server exposes: up to 73 tools across 11 categories, 4 MCP Resources, and 10 MCP Prompts.
+Complete inventory of everything the Intervals.icu MCP server exposes: up to 74 tools across 11 categories, 4 MCP Resources, and 10 MCP Prompts.
 
 ## Delete Safety Mode
 
@@ -8,8 +8,8 @@ Destructive tools are gated by the optional `INTERVALS_ICU_DELETE_MODE` env var.
 
 | Mode | Registered tools | Events | Activities | Activity notes | Gear | Library workouts | Library folders | Sport settings | Custom items |
 |---|---|---|---|---|---|---|---|---|---|
-| `safe` (default) | 70 | tomorrow or later | ✗ | ✓ | ✓ | ✓ | empty only | ✗ | ✗ |
-| `full` | 73 | any date | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `safe` (default) | 71 | tomorrow or later | duplicates only | ✓ | ✓ | ✓ | empty only | ✗ | ✗ |
+| `full` | 74 | any date | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `none` | 64 | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
 
 In `safe` mode, `icu_delete_event`, `icu_bulk_delete_events`, and `icu_delete_workout_folder` return a uniform envelope showing what was deleted and what was skipped (the folder tool also adds a `folder` summary):
@@ -47,6 +47,8 @@ Set the mode in your client config alongside the credentials:
 **Why sport settings and custom items are full-only:** Sport-settings deletion removes the thresholds and zones that activities of that sport are analysed against from then on, and re-creating the record starts from defaults rather than restoring them. Custom items can be data-bearing fields whose values are stored across activities. Neither is recoverable by re-creating the deleted record.
 
 **Why library workouts are allowed in safe mode:** A library workout is a reusable template. Deleting one leaves calendar events (including ones created from it by `icu_apply_training_plan`) and recorded activities untouched, and the template can be rebuilt from its workout text — the same low-stakes profile as gear.
+
+**Why duplicate deletion is allowed in safe mode:** `icu_delete_duplicate_activity` removes an activity only when another activity of the same sport covers at least half of it in time, so the session's data survives in the kept copy. Typical case: a trainer ride uploaded by the trainer app and recorded on a watch as well. The tool fetches both first and returns what was kept and what was removed. Intervals.icu tombstones deleted activities, so the device sync does not import the copy again.
 
 **Why activity notes are allowed in safe mode:** `icu_delete_activity_message` removes a single note and returns its text, so it can be re-posted with `icu_add_activity_message` (only the original timestamp is lost). Intervals.icu soft-deletes notes: a "(deleted)" placeholder with a `deleted` timestamp stays in the thread, and an already deleted note can be neither edited nor deleted again. The activity and its recorded data are untouched. Editing a note (`icu_update_activity_message`) is not gated, like other updates; it returns the old text for the same reason.
 
@@ -97,6 +99,7 @@ resource takes no arguments and always reflects the configured default athlete.
 | `icu_get_activities_around`  | Get activities before and after a specific one    |
 | `icu_update_activity`        | Update activity name, description, distance, sub-type, carbs, tags, RPE, or any other writable field. Distance is written as `icu_distance`. Moving, elapsed and recording time cannot be changed after creation (the web UI does not allow it either); set them when creating a manual activity |
 | `icu_delete_activity`        | Delete an activity *(only registered when `INTERVALS_ICU_DELETE_MODE=full`)* |
+| `icu_delete_duplicate_activity` | Delete one copy of a session recorded twice (e.g. trainer app + watch). Refuses unless both are the same sport and overlap for at least half of the shorter one *(`safe`/`full`)* |
 | `icu_download_activity_file` | Download original activity file                   |
 | `icu_download_fit_file`      | Download activity as FIT file                     |
 | `icu_download_gpx_file`      | Download activity as GPX file                     |
