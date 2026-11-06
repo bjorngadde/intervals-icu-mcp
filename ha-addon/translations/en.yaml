@@ -23,6 +23,9 @@ configuration:
   scopes:
     name: OAuth scopes
     description: Comma-separated Intervals.icu scopes requested at login.
+  delete_mode:
+    name: Delete mode
+    description: Which delete tools Claude gets. safe (default) allows future events, gear, library items, notes and duplicate activities; full allows everything, including past events and activities; none allows nothing.
   log_level:
     name: Log level
     description: Server log level.
