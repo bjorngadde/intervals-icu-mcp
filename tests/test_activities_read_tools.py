@@ -46,7 +46,7 @@ class TestGetRecentActivities:
                         "average_heartrate": 150,
                         "average_cadence": 88,
                         "icu_training_load": 75,
-                        "icu_intensity": 0.85,
+                        "icu_intensity": 53.51,
                     },
                     {
                         "id": "a2",
@@ -66,6 +66,8 @@ class TestGetRecentActivities:
         assert first["average_watts"] == 200
         assert first["normalized_power"] == 220
         assert first["training_load"] == 75
+        # API sends percent (53.51); the tool reports the ratio
+        assert first["intensity_factor"] == 0.535
         # Untitled fallback when name is None
         assert response["data"]["activities"][1]["name"] == "Untitled"
 
@@ -186,7 +188,7 @@ class TestSearchActivitiesFull:
                         "average_heartrate": 168,
                         "average_cadence": 92,
                         "icu_training_load": 60,
-                        "icu_intensity": 0.95,
+                        "icu_intensity": 95.0,
                     }
                 ],
             )
@@ -198,6 +200,33 @@ class TestSearchActivitiesFull:
         assert activity["performance"]["normalized_power"] == 285
         assert activity["training_load"] == 60
         assert activity["intensity_factor"] == 0.95
+        assert "weather" not in activity
+
+    async def test_includes_weather_block(self, mock_config, respx_mock):
+        respx_mock.get("/athlete/i123456/activities/search-full").mock(
+            return_value=Response(
+                200,
+                json=[
+                    {
+                        "id": "a1",
+                        "name": "Long Run",
+                        "start_date_local": "2026-11-05T08:00:00",
+                        "type": "Run",
+                        "has_weather": True,
+                        "average_weather_temp": -2.04,
+                        "average_wind_speed": 0.0,
+                        "headwind_percent": 40.0,
+                    }
+                ],
+            )
+        )
+
+        result = await search_activities_full(query="Long", ctx=_make_ctx(mock_config))
+        weather = json.loads(result)["data"]["activities"][0]["weather"]
+        assert weather == {
+            "temperature_c": {"average": -2.0},
+            "wind": {"average_speed_meters_per_sec": 0.0, "headwind_percent": 40.0},
+        }
 
     async def test_empty_query_validation(self, mock_config):
         result = await search_activities_full(query="", ctx=_make_ctx(mock_config))

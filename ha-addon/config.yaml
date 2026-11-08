@@ -1,5 +1,5 @@
 name: Intervals.icu MCP
-version: "0.3.0"
+version: "0.4.0"
 slug: intervals_icu_mcp
 description: Remote MCP server for Intervals.icu (OAuth or secret URL) for Claude custom connectors
 url: https://github.com/bjorngadde/intervals-icu-mcp/tree/main/ha-addon

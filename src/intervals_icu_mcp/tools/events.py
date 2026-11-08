@@ -9,6 +9,7 @@ from ..auth import ICUConfig
 from ..client import ICUAPIError, ICUClient
 from ..models import Event
 from ..response_builder import ResponseBuilder
+from ._intensity import intensity_factor
 
 PUSH_ERRORS_HINT = (
     "Intervals.icu could not push some planned workouts to a connected platform "
@@ -140,7 +141,7 @@ async def get_calendar_events(
                         event_item["training_load"] = event.icu_training_load
 
                     if event.icu_intensity:
-                        event_item["intensity_factor"] = event.icu_intensity
+                        event_item["intensity_factor"] = intensity_factor(event.icu_intensity)
 
                 # Ranged events (INJURED, SICK, HOLIDAY, SEASON_START, ...)
                 if event.end_date_local:
@@ -288,7 +289,7 @@ async def get_upcoming_workouts(
                     workout_item["training_load"] = workout.icu_training_load
 
                 if workout.icu_intensity:
-                    workout_item["intensity_factor"] = workout.icu_intensity
+                    workout_item["intensity_factor"] = intensity_factor(workout.icu_intensity)
 
                 # Workout description
                 if workout.description:
@@ -354,7 +355,7 @@ async def get_event(
             if event.icu_training_load:
                 metrics["training_load"] = event.icu_training_load
             if event.icu_intensity:
-                metrics["intensity_factor"] = event.icu_intensity
+                metrics["intensity_factor"] = intensity_factor(event.icu_intensity)
             if event.joules:
                 metrics["joules"] = event.joules
             if event.joules_above_ftp:

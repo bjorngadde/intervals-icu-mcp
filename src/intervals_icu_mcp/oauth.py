@@ -100,7 +100,7 @@ SCOPE_BY_TOOL: dict[str, str | None] = {
     "icu_download_gpx_file": "ACTIVITY:READ",
     # Activity analysis
     "icu_get_activity_streams": "ACTIVITY:READ",
-    "icu_get_stream_stats": "ACTIVITY:READ",
+    "icu_get_activity_window_stats": "ACTIVITY:READ",
     "icu_get_activity_intervals": "ACTIVITY:READ",
     "icu_get_best_efforts": "ACTIVITY:READ",
     "icu_search_intervals": "ACTIVITY:READ",
