@@ -107,7 +107,7 @@ whose scope was not granted fails with a "lacks the scope" error.
 
 | Scope | Tools |
 |---|---|
-| `ACTIVITY:READ` | `icu_get_recent_activities`, `icu_get_activities_by_date`, `icu_get_activity_details`, `icu_search_activities`, `icu_search_activities_full`, `icu_get_activities_around`, `icu_download_activity_file`, `icu_download_fit_file`, `icu_download_gpx_file`, `icu_get_activity_streams`, `icu_get_stream_stats`, `icu_get_activity_intervals`, `icu_get_best_efforts`, `icu_search_intervals`, `icu_get_power_histogram`, `icu_get_hr_histogram`, `icu_get_pace_histogram`, `icu_get_gap_histogram`, `icu_get_activity_messages`, `icu_get_power_curves`, `icu_get_hr_curves`, `icu_get_pace_curves` |
+| `ACTIVITY:READ` | `icu_get_recent_activities`, `icu_get_activities_by_date`, `icu_get_activity_details`, `icu_search_activities`, `icu_search_activities_full`, `icu_get_activities_around`, `icu_download_activity_file`, `icu_download_fit_file`, `icu_download_gpx_file`, `icu_get_activity_streams`, `icu_get_activity_window_stats`, `icu_get_activity_intervals`, `icu_get_best_efforts`, `icu_search_intervals`, `icu_get_power_histogram`, `icu_get_hr_histogram`, `icu_get_pace_histogram`, `icu_get_gap_histogram`, `icu_get_activity_messages`, `icu_get_power_curves`, `icu_get_hr_curves`, `icu_get_pace_curves` |
 | `ACTIVITY:WRITE` | `icu_update_activity`, `icu_update_activity_streams`, `icu_bulk_create_manual_activities`, `icu_delete_activity`, `icu_add_activity_message`, `icu_update_activity_message`, `icu_delete_activity_message` |
 | `WELLNESS:READ` | `icu_get_fitness_summary`, `icu_get_fitness_chart`, `icu_get_wellness_data`, `icu_get_wellness_for_date` |
 | `WELLNESS:WRITE` | `icu_update_wellness` |

@@ -111,20 +111,13 @@ The following skills are available in `.claude/skills/`:
 
 ## Merging PRs
 
-PRs are **squash-merged only** (repo setting: commit title from `PR_TITLE`, body `BLANK`). The PR title becomes the single `main` commit subject with ` (#N)` appended — write PR titles as single-line conventional commits (≤ ~70 chars), and edit non-conforming community PR titles before merging.
+PRs are **squash-merged only** (repo setting: commit title from `PR_TITLE`, body `BLANK`). The PR title becomes the single `main` commit subject with ` (#N)` appended — write PR titles as single-line conventional commits (≤ ~70 chars), and edit non-conforming community PR titles before merging. The title sets the version bump and is the raw input for the release notes (see Releases), so check the type (`feat` vs `fix`) and the `!` marker before merging.
 
 ## Releases
 
-CHANGELOG.md is **manual** — there is no automated changelog generation. Entries are the **maintainer's responsibility**: community PRs deliberately do not include them (CONTRIBUTING.md and the PR template say so, to avoid `[Unreleased]` merge conflicts and keep SemVer classification in one place). Add the `[Unreleased]` bullet at merge time, while the PR context is fresh; `/release-check` verifies every user-facing commit since the last tag has an entry before a release is cut. The only release-related automation:
-- Package version comes from the git tag via `hatch-vcs` (no `pyproject.toml` bump needed)
-- Upstream's `publish.yml` (PyPI + MCP Registry) and `release.yml` (Docker image) publish under upstream's names, so **this fork removed them**; it publishes nothing. The Home Assistant add-on builds from git and is checked by `ha-addon.yml`.
+**This fork does not cut releases or publish anything.** Upstream's release tooling (`publish.yml`, `release.yml`, `pr-title.yml`, `.github/scripts/next_version.py`, the `/release-write` skill) publishes under upstream's names, so the fork removed it; keep it deleted when merging upstream. `CHANGELOG.md` is upstream's history, frozen at 5.8.0 (upstream now writes release notes in GitHub Releases); don't add entries. The Home Assistant add-on builds from git at `main`; bump `version` in `ha-addon/config.yaml` and add a line to `ha-addon/CHANGELOG.md` when a change should reach Home Assistant as an update.
 
-To cut a release:
-1. Rename `## [Unreleased]` → `## [X.Y.Z] — YYYY-MM-DD` in CHANGELOG.md
-2. Commit (e.g., `chore(release): X.Y.Z`)
-3. Tag and push: `git tag vX.Y.Z && git push origin main vX.Y.Z`
-
-Follow SemVer with the narrowed contract defined in the CHANGELOG header. **Major** (breaking): removing or renaming a tool or tool parameter, changing config env var semantics, changing which tools register by default, or removing information from a response. **Minor**: response-shape changes that preserve the information (key renames, restructuring, added fields) — MCP responses are read dynamically by LLMs, not parsed by typed clients. Releases ≤ 4.0.0 predate this policy and treated any response-shape change as breaking.
+Follow SemVer with the narrowed contract defined in CONTRIBUTING.md ("Versioning and release notes"). **Major** (breaking — title needs `!`): removing or renaming a tool or tool parameter, changing config env var semantics, changing which tools register by default, or removing information from a response. **Minor** (`feat`): response-shape changes that preserve the information (key renames, restructuring, added fields) — MCP responses are read dynamically by LLMs, not parsed by typed clients; retitle a `fix` that changes response shape to `feat`. Releases ≤ 4.0.0 predate this policy and treated any response-shape change as breaking.
 
 ### Deferred breaking changes (batch into the next major)
 

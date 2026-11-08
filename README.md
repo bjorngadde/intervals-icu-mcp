@@ -209,7 +209,8 @@ This fork builds on [hhopke/intervals-icu-mcp](https://github.com/hhopke/interva
 Heiko Kromminga: the tool set, the workout-syntax guidance, delete safety mode and the tests. That
 project originally came from [eddmann/intervals-icu-mcp](https://github.com/eddmann/intervals-icu-mcp).
 
-- Upstream's release history is in [CHANGELOG.md](CHANGELOG.md).
+- Upstream's release history: [GitHub Releases](https://github.com/hhopke/intervals-icu-mcp/releases)
+  ([CHANGELOG.md](CHANGELOG.md) covers releases up to 5.8.0).
 - Report bugs in generic tools upstream; to support upstream development, see
   [GitHub Sponsors](https://github.com/sponsors/hhopke).
 - The generic parts of this fork (per-request client, secret path, OAuth) are proposed for

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.0
+
+- Upstream changes merged (hhopke/intervals-icu-mcp up to #200):
+  - `icu_get_stream_stats` is renamed `icu_get_activity_window_stats`. Update any prompt that
+    names the old tool.
+  - Intensity factor is reported as a ratio (0.85), not a percentage.
+  - Fixes for pace curves, activity interval fields and curves without distance data.
+  - Activity details and full search include weather.
+
 ## 0.3.0
 
 - New option `delete_mode` (`safe`, `full` or `none`), passed on as `INTERVALS_ICU_DELETE_MODE`.
