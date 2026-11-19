@@ -308,6 +308,12 @@ tool registered only with the secret (subprocess check: 70 vs 71 tools).
 
 ## Phase 5 — Home Assistant add-on
 
+> **Moved (November 2026).** The add-on now lives in
+> [bjorngadde/home-assistant-apps](https://github.com/bjorngadde/home-assistant-apps) as `intervals-icu-mcp/`, together with the other Home
+> Assistant apps, its launcher tests and a Caddy reverse proxy in place of NGINX. It is a prebuilt
+> image built from a pinned commit of this repository, updated by Renovate. The notes below
+> record the original design; file paths in them refer to the old `ha-addon/` folder.
+
 **Layout decision: an add-on folder in this repository** (`ha-addon/` plus `repository.yaml`
 at the root), not a separate add-on repository.
 

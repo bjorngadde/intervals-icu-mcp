@@ -61,7 +61,7 @@ make docker/run       # Run Docker container
 12. `sport_settings.py` — FTP, FTHR, pace thresholds
 13. `custom_items.py` — Charts, custom fields, zones, etc.
 
-Remote/OAuth setup: `docs/oauth.md`. Home Assistant add-on: `ha-addon/` (+ `repository.yaml`).
+Remote/OAuth setup: `docs/oauth.md`. The Home Assistant app is not in this repository: it lives in `bjorngadde/home-assistant-apps` (`intervals-icu-mcp/`) and is built from a pinned commit of this repository's `main`.
 
 ## Code Style
 
@@ -115,7 +115,7 @@ PRs are **squash-merged only** (repo setting: commit title from `PR_TITLE`, body
 
 ## Releases
 
-**This fork does not cut releases or publish anything.** Upstream's release tooling (`publish.yml`, `release.yml`, `pr-title.yml`, `.github/scripts/next_version.py`, the `/release-write` skill) publishes under upstream's names, so the fork removed it; keep it deleted when merging upstream. `CHANGELOG.md` is upstream's history, frozen at 5.8.0 (upstream now writes release notes in GitHub Releases); don't add entries. The Home Assistant add-on builds from git at `main`; bump `version` in `ha-addon/config.yaml` and add a line to `ha-addon/CHANGELOG.md` when a change should reach Home Assistant as an update.
+**This fork does not cut releases or publish anything.** Upstream's release tooling (`publish.yml`, `release.yml`, `pr-title.yml`, `.github/scripts/next_version.py`, the `/release-write` skill) publishes under upstream's names, so the fork removed it; keep it deleted when merging upstream. `CHANGELOG.md` is upstream's history, frozen at 5.8.0 (upstream now writes release notes in GitHub Releases); don't add entries. The Home Assistant app in `bjorngadde/home-assistant-apps` pins a commit of `main`. Renovate there opens a pull request when `main` moves on, and merging it publishes the update to Home Assistant; nothing needs bumping here.
 
 Follow SemVer with the narrowed contract defined in CONTRIBUTING.md ("Versioning and release notes"). **Major** (breaking — title needs `!`): removing or renaming a tool or tool parameter, changing config env var semantics, changing which tools register by default, or removing information from a response. **Minor** (`feat`): response-shape changes that preserve the information (key renames, restructuring, added fields) — MCP responses are read dynamically by LLMs, not parsed by typed clients; retitle a `fix` that changes response shape to `feat`. Releases ≤ 4.0.0 predate this policy and treated any response-shape change as breaking.
 
@@ -134,5 +134,4 @@ Running list of deferred breaking cleanups (do together in the next major; keep 
 - `openapi-spec.json` — Intervals.icu API specification. Upstream refreshes it weekly and it arrives with upstream merges (this fork removed the duplicate `update-openapi.yml`); to refresh locally run `curl -s https://intervals.icu/api/v1/docs > openapi-spec.json`.
 - `uv.lock` — Locked dependencies (commit this)
 - `.github/workflows/test.yml` — CI tests
-- `.github/workflows/ha-addon.yml` — Home Assistant add-on build + smoke test, NGINX snippet check
 - `.github/workflows/audit.yml` — Weekly CVE audit of locked runtime dependencies
