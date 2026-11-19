@@ -15,9 +15,8 @@ allowed-tools: Bash(make can-release), Bash(make test:*), Bash(make lint:*)
    ```
 
 2. This fork cuts no releases (see CLAUDE.md, "Releases"), so there is no version bump or
-   changelog to check. If the change touches `ha-addon/` or anything the add-on runs
-   (`src/`, `pyproject.toml`, `uv.lock`), check whether `ha-addon/config.yaml` needs a
-   `version` bump and `ha-addon/CHANGELOG.md` an entry, so Home Assistant offers the update.
+   changelog to check. The Home Assistant app lives in `bjorngadde/home-assistant-apps` and
+   picks up new commits on `main` through Renovate there, so nothing needs bumping here.
 
 3. Parse the output and report a clear summary:
 

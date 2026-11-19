@@ -8,25 +8,24 @@ Claude reads your activities, wellness (HRV, sleep, resting HR), fitness and for
 planned workouts to your Intervals.icu calendar. Intervals.icu syncs those workouts on to your
 watch and trainer apps (for example Garmin and Zwift).
 
-It runs as a **Home Assistant add-on** behind the NGINX SSL proxy add-on, and you connect it to
+It runs as a **Home Assistant app** behind a Caddy reverse proxy, and you connect it to
 Claude as a **custom connector**. That makes it available on claude.ai web, the mobile apps and
 scheduled tasks. The connector is protected either by an Intervals.icu **OAuth** login or by a
 **secret URL**.
 
 > This is a fork of [hhopke/intervals-icu-mcp](https://github.com/hhopke/intervals-icu-mcp)
 > (MIT), which itself started from [eddmann/intervals-icu-mcp](https://github.com/eddmann/intervals-icu-mcp).
-> The fork adds per-request OAuth auth, a secret-path mode, coach-oriented calendar features and the Home Assistant add-on. See [Credits](#credits--upstream).
+> The fork adds per-request OAuth auth, a secret-path mode and coach-oriented calendar features. The Home Assistant app is in [bjorngadde/home-assistant-apps](https://github.com/bjorngadde/home-assistant-apps). See [Credits](#credits--upstream).
 
 [![Tests](https://github.com/bjorngadde/intervals-icu-mcp/actions/workflows/test.yml/badge.svg)](https://github.com/bjorngadde/intervals-icu-mcp/actions/workflows/test.yml)
-[![Home Assistant add-on](https://github.com/bjorngadde/intervals-icu-mcp/actions/workflows/ha-addon.yml/badge.svg)](https://github.com/bjorngadde/intervals-icu-mcp/actions/workflows/ha-addon.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 ## How it fits together
 
 ```mermaid
 flowchart LR
-    C["Claude<br/>web · mobile · scheduled task"] -- "HTTPS /mcp<br/>(OAuth or secret URL)" --> N["NGINX SSL proxy<br/>(HA add-on)"]
-    N -- ":8099" --> A["Intervals.icu MCP<br/>(HA add-on)"]
+    C["Claude<br/>web · mobile · scheduled task"] -- "HTTPS /mcp<br/>(OAuth or secret URL)" --> N["Caddy<br/>(HA app)"]
+    N -- ":8099" --> A["Intervals.icu MCP<br/>(HA app)"]
     A -- "REST API" --> I["Intervals.icu"]
     I -- "planned workouts" --> D["Garmin · Zwift"]
 ```
@@ -41,14 +40,14 @@ flowchart LR
 
 ## Setup (Home Assistant)
 
-You need Home Assistant with the **NGINX Home Assistant SSL proxy** add-on, a host name with a
-valid certificate (for example `intervals.example.com`), and an Intervals.icu account.
+The Home Assistant app lives in [bjorngadde/home-assistant-apps](https://github.com/bjorngadde/home-assistant-apps)
+([`intervals-icu-mcp/`](https://github.com/bjorngadde/home-assistant-apps/tree/main/intervals-icu-mcp)), next to the Caddy reverse proxy that
+serves it. It is built from a pinned commit of this repository's `main`.
 
-1. **Install the add-on.** In Home Assistant, go to **Settings → Add-ons → Add-on Store → ⋮ →
-   Repositories**, add `https://github.com/bjorngadde/intervals-icu-mcp`, then install
-   **Intervals.icu MCP**.
-2. **Choose how Claude authenticates** and fill in the add-on options. The add-on refuses to
-   start until at least one mode is configured.
+1. **Install the app.** In Home Assistant, go to **Settings → Apps → App store → ⋮ →
+   Repositories**, add `https://github.com/bjorngadde/home-assistant-apps`, then install **Intervals.icu MCP**.
+2. **Choose how Claude authenticates** and fill in the app options. The app refuses to start
+   until at least one mode is configured.
 
    | Mode | When | Options | Claude connector URL |
    |---|---|---|---|
@@ -58,16 +57,15 @@ valid certificate (for example `intervals.example.com`), and an Intervals.icu ac
    Both modes can be on at the same time. Generate secrets with
    `python3 -c 'import secrets; print(secrets.token_urlsafe(32))'`. For OAuth, register
    `https://<host>/auth/callback` as the app's redirect URI in Intervals.icu → Settings → Apps.
-3. **Route it through NGINX.** Copy [`ha-addon/nginx/intervals.conf`](ha-addon/nginx/intervals.conf)
-   to `/share/nginx_proxy/`, replace the host name, enable `customize` in the NGINX add-on and
-   restart it. **Do not forward port 8099**; only NGINX (443) should be reachable.
+3. **Route it through the reverse proxy.** The Caddy app's reference Caddyfile has a site block
+   for it. **Do not forward port 8099**; only the proxy (443) should be reachable.
 4. **Add the connector in Claude:** **Settings → Connectors → Add custom connector**, using the URL
    from the table. With OAuth, Claude opens a consent page and then the Intervals.icu login.
 5. **Check it:** `https://<host>/healthz` returns `{"status":"ok"}`. Then ask Claude *"Show me my
    activities from the last 7 days."*
 
-Full option reference, OAuth details and troubleshooting: [`ha-addon/DOCS.md`](ha-addon/DOCS.md)
-and [`docs/oauth.md`](docs/oauth.md).
+Full option reference, OAuth details and troubleshooting: the app's
+[`DOCS.md`](https://github.com/bjorngadde/home-assistant-apps/blob/main/intervals-icu-mcp/DOCS.md) and [`docs/oauth.md`](docs/oauth.md).
 
 ## The daily coach
 
@@ -107,12 +105,11 @@ Conventions the coach relies on:
   and the list is re-checked on every request. Each request runs with that athlete's own token;
   the operator's API key is never used for it. Default scopes are minimal:
   `ACTIVITY:READ,WELLNESS:READ,CALENDAR:WRITE,SETTINGS:READ`.
-- **Storage.** OAuth state is encrypted under the add-on's `/data` (mode 0700) and survives
+- **Storage.** OAuth state is encrypted under the app's `/data` (mode 0700) and survives
   restarts.
 - **Logging.** Secrets and tokens never appear in logs: the secret path is logged as
-  `/__secret__/mcp`, NGINX access logging is off, and every log handler redacts configured
-  secrets.
-- **Rate limit.** NGINX allows 10 requests per second per IP (burst 50).
+  `/__secret__/mcp`, the proxy writes no access log and drops request paths from its error
+  log, and every log handler redacts configured secrets.
 
 ## Other ways to run it
 
@@ -127,7 +124,7 @@ uvx --from git+https://github.com/bjorngadde/intervals-icu-mcp intervals-icu-mcp
   --transport http --host 0.0.0.0 --port 8000
 ```
 
-Configure it with the same environment variables the add-on sets, for example
+Configure it with the same environment variables the Home Assistant app sets, for example
 `MCP_PATH_SECRET`, `INTERVALS_OAUTH_CLIENT_ID` / `_SECRET`, `PUBLIC_BASE_URL`,
 `ALLOWED_ATHLETE_IDS` and `DATA_DIR`. The full table is in
 [`docs/oauth.md`](docs/oauth.md). Without any of these set, the HTTP server has **no
@@ -199,9 +196,6 @@ make can-release  # everything CI checks: tests, ruff, pyright, package metadata
 | [`docs/architecture.md`](docs/architecture.md) | How the server, middleware, client and tools fit together |
 | [`docs/testing.md`](docs/testing.md) | Testing conventions (pytest and respx) |
 | [`docs/examples.md`](docs/examples.md) | Example prompts by category |
-
-The add-on is built and smoke-tested for amd64 and aarch64 in CI
-([`ha-addon.yml`](.github/workflows/ha-addon.yml)).
 
 ## Credits & upstream
 

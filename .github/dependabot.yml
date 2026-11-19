@@ -1,6 +1,6 @@
 version: 2
 updates:
-  # uv.lock pins what the Home Assistant add-on installs (hash-checked).
+  # uv.lock pins what the Home Assistant app installs (hash-checked).
   - package-ecosystem: uv
     directory: /
     schedule:
